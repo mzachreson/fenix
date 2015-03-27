@@ -106,9 +106,73 @@ module move_mod
         real(8) vthwall, vg, vw, v_2D, theta
         real(8) Nin,Nout,Ein,Eout,zold,znew,zchkleft,dE,dN
         real(8) rnd,vth,phi,r0,z0,n0r,n0z
+        real(8) flux, densavg, vbar, vavg, vrfluid, vzfluid, vadd, vbarr, vbarz
+        real(8) tempavg, vr_fluidavg,vz_fluidavg, num_avg
 
-        integer numtrace,numargon,ichk
+        integer numtrace,numargon,ichk,num_dens
 
+
+        !This section tracks the fluid properties in the cell and stores them
+        !over several timesteps.  The number of timesteps that it saves is set
+        !in core.f90, in the cell_type.  Turn this section on when needed by
+        !setting fluid_switch to 1 in core.f90, in the constants_mod.  This
+        !section must be on in order for Nanbu collsions to work
+        if(fluid_switch.eq.1) then
+           !Read in the number of timesteps that will be stored.    
+           num_dens=size(cl%dens)
+
+           !initialize the variables
+           if(cur_step.eq.1)then
+              do k=1,num_dens
+                 cl%dens(k)=0d0
+                 cl%vr_fluid(k)=0d0
+                 cl%vz_fluid(k)=0d0
+                 cl%temp(k)=0d0
+              end do
+           end if
+        
+   
+           !Now save old densities
+           do k=1,num_dens-1
+               cl%dens(k)=cl%dens(k+1)
+               cl%vr_fluid(k)=cl%vr_fluid(k+1)
+               cl%vz_fluid(k)=cl%vz_fluid(k+1)
+               cl%temp(k)=cl%temp(k+1)
+           end do
+           !only find values when there is a particle in the cell.
+           if(cl%num_parts-cl%partition.gt.0)then
+              ! Now load the last element of the array with the current density
+              cl%dens(num_dens)=dble((cl%num_parts-cl%partition)*Nef*1e-3)/cl%volume       
+              cl%vr_fluid(num_dens)=sum(cl%ps(cl%partition+1:cl%num_parts)%vx)/(cl%num_parts-cl%partition)
+        
+              cl%vz_fluid(num_dens)=sum(cl%ps(cl%partition+1:cl%num_parts)%vz)/(cl%num_parts-cl%partition)
+           end if    
+           !If the 
+           num_avg=dble(min(num_dens,cur_step))
+           cl%vr_fluidavg=sum(cl%vr_fluid)/num_avg
+           cl%vz_fluidavg=sum(cl%vz_fluid)/num_avg
+           cl%densavg=sum(cl%dens)/num_avg
+
+           !Now find the mean of v**2, then scale to temperature.
+           cl%temp(num_dens)=sum((cl%ps(cl%partition+1:cl%num_parts)%vx-cl%vr_fluidavg)**2+(cl%ps(cl%partition+1:cl%num_parts)%vz-cl%vz_fluidavg)**2)/num_avg
+           !Now scale into temperature
+           cl%temp(num_dens)=tr_m*cl%temp(num_dens)/3d0/kb
+
+           !Now take the average and compute the new cross section scale
+           cl%tempavg=sum(cl%temp)/num_avg
+           !Now avoid INF and NAN by making a zero temp just very small
+           if(cl%tempavg.lt.1) cl%tempavg=1d0
+
+           cl%aref_ambi=(1d0+cl%Te/cl%tempavg) !cl%Te must be loaded with the
+                                          !electron temperature
+           if(cl%tempavg.ne.cl%tempavg)then
+               write(*,*) '##', num_avg,  cl%num_parts-cl%partition, cl%vz_fluid(num_dens), cl%vr_fluid(num_dens)
+               write(*,*) 'TEMP', cl%temp
+               write(*,*) 'VR', cl%vr_fluid
+               write(*,*) 'VZ', cl%vz_fluid
+               stop 666
+           end if
+        end if    
 ! variables for tracking particles and energy entering and leaving
 
 !        zchkleft = 1.038d-4*.5

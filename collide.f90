@@ -22,6 +22,7 @@ contains
   subroutine collide
     use core_data_mod
     use simulation_mod
+    use constants_mod
     implicit none
     integer i
 
@@ -32,7 +33,7 @@ contains
       ! do trace particle collisions
       call trace_collide(cells(i))
       ! do trace particle self collisions
-      call trace_self_collide(cells(i))
+      if(nanbu_switch.eq.1) call trace_self_collide(cells(i))
     end do
   end subroutine collide
 

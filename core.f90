@@ -19,7 +19,9 @@ implicit none
 
   real(8) aref, aref_tr, bref_tr, nu, nu_tr1,nu_tr2
   integer trace_switch  ! Switch for changing the properties of the trace ion
-  
+  integer nanbu_switch !Switch to turn nanbu style trace collisions on and off
+  integer fluid_switch !Switch for tracking fluid properties in each collision cell
+ 
   parameter (pi=3.14159265358979d0)
   parameter (argon_diam=142.d-12)
   parameter (m=6.634d-26)
@@ -37,7 +39,11 @@ implicit none
   data trace_switch/2/ !1 - Barium; 2 - Calcium; 3 - Argon Ions
   !Trace collision data is loaded in initialize.f90, subroutine
   !initialize_trace_collide_data, go there to edit values
-
+  data nanbu_switch/0/ !0 turns off nanbu collisions, 1 turns them on
+                       !Nanbu only works if fluid_switch is also set to 1.
+  data fluid_switch/1/ !switch that tells FENIX to track fluid properties
+                       !(dens,temp,vr,vx,etc) these properties are stored in the
+                       !cell type.
 
 
 !Set trace
@@ -122,6 +128,7 @@ implicit none
 						 ! it partitions the normal particles from the trace particles.
 						 ! From 1 to partition are normal particles, and from partition+1 to num_parts are trace particles.
 						 ! if partition == num_parts, then there are no trace particles.
+    
     real(8) min_r,max_r
     real(8) min_z,max_z
     real(8) min_th,max_th
