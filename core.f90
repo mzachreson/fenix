@@ -18,9 +18,9 @@ implicit none
   real(8) tr_q    ! charge of trace particle -- in Coulombs
 
   real(8) aref, aref_tr, bref_tr, nu, nu_tr1,nu_tr2
-  integer trace_switch  ! Switch for changing the properties of the trace ion
-  integer nanbu_switch !Switch to turn nanbu style trace collisions on and off
-  integer fluid_switch !Switch for tracking fluid properties in each collision cell
+  real(8) particle_code, trace_code !Variable for saving the name of the trace element.
+                                    !Instructions for setting it are givine in initialize.f90
+                                    !where if is filled.
  
   parameter (pi=3.14159265358979d0)
   parameter (argon_diam=142.d-12)
@@ -36,12 +36,12 @@ implicit none
 
 
   !Now choose the trace element
-  data trace_switch/2/ !1 - Barium; 2 - Calcium; 3 - Argon Ions
+! data trace_switch/2/ !1 - Barium; 2 - Calcium; 3 - Argon Ions
   !Trace collision data is loaded in initialize.f90, subroutine
   !initialize_trace_collide_data, go there to edit values
-  data nanbu_switch/0/ !0 turns off nanbu collisions, 1 turns them on
+! data nanbu_switch/0/ !0 turns off nanbu collisions, 1 turns them on
                        !Nanbu only works if fluid_switch is also set to 1.
-  data fluid_switch/1/ !switch that tells FENIX to track fluid properties
+! data fluid_switch/1/ !switch that tells FENIX to track fluid properties
                        !(dens,temp,vr,vx,etc) these properties are stored in the
                        !cell type.
 
@@ -76,6 +76,11 @@ module simulation_mod
   integer tr_restart_unit
   integer adapt_unit
   integer partcount_unit
+
+  !A few property switches
+  integer trace_switch  ! Switch for changing the properties of the trace ion
+  logical nanbu_switch !Switch to turn nanbu style trace collisions on and off
+  logical fluid_switch !Switch for tracking fluid properties in each collision cell
 
   !This is the guesstimated temperature of the simulation
   !Used to figure out the size of ghost cells, etc. in initialization
@@ -182,6 +187,7 @@ implicit none
     type(point_type), pointer, dimension(:) :: pts
     integer num_pts
     integer type_poly
+    real(8) reflect_coeff
   end type polygon_type
   
   
@@ -313,6 +319,7 @@ implicit none
   ! Polygons
   type(polygon_type), allocatable, dimension(:) :: polys
   integer num_polys
+
 
 end module core_data_mod
 

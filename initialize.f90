@@ -21,13 +21,13 @@ module initialize_mod
     call initialize_fine_cells
     call initialize_polys
     call initialize_masks
-
+    
+    call initialize_trace_collide_data 
     call initialize_boundaries
     call initialize_output
     call initialize_communication
     call initialize_particles
  
-    call initialize_trace_collide_data 
 
     open(unit=partcount_unit,file='particle_count.txt',status='unknown')
 
@@ -106,6 +106,18 @@ module initialize_mod
     if(mpi_rank == 0) then
        write(*,*) 'output_skip, restart_skip'
        write(*,*) output_skip, restart_skip
+    end if
+
+    read(in_u,*) fluid_switch, nanbu_switch
+    if(mpi_rank == 0) then
+       write(*,*) 'fluid_switch, nanbu_switch'
+       write(*,*) fluid_switch, nanbu_switch
+    end if
+
+    read(in_u,*) trace_switch
+    if(mpi_rank == 0) then
+       write(*,*) 'trace_switch'
+       write(*,*) trace_switch
     end if
 
     read(in_u,*) fine_cells_dr, fine_cells_dz
@@ -230,7 +242,7 @@ module initialize_mod
   end subroutine basic_initialization
 
 
-
+ 
 
 
 
@@ -324,20 +336,20 @@ module initialize_mod
       write(output_unit,"(2(1x,i5),2(1x,1pe12.4),1x,i6,3(1x,1pe12.4),1x,i4,4(1x,1pe12.4))") &
             num_s_cells_r, num_s_cells_z, &
             s_cells_dr,s_cells_dz, &
-            output_skip, tau, 0., simT, num_polys, &
+            output_skip, tau, m, particle_code, num_polys, &
             rmin_global, rmax_global, zmin_global, zmax_global
 
       write(outputtrace_unit,"(2(1x,i5),2(1x,1pe12.4),1x,i6,3(1x,1pe12.4),1x,i4,4(1x,1pe12.4))") &
             num_s_cells_r, num_s_cells_z, &
             s_cells_dr,s_cells_dz, &
-            output_skip, tau, 0., simT, num_polys, &
+            output_skip, tau, tr_m, trace_code, num_polys, &
             rmin_global, rmax_global, zmin_global, zmax_global
     end if
 
     ! normal output.txt file
     do i=1,num_polys
         write(output_unit,"(2(1x,i5),11(1pe12.4))") polys(i)%num_pts, polys(i)%type_poly, &
-                0.d0, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
+                polys(i)%reflect_coeff, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
         do j=1,polys(i)%num_pts
             write(output_unit,"(13(1pe12.4))") polys(i)%pts(j)%z, polys(i)%pts(j)%r, &
                 0.d0, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
@@ -347,7 +359,7 @@ module initialize_mod
     ! trace particle output_trace.txt file
     do i=1,num_polys
         write(outputtrace_unit,"(2(1x,i5),11(1pe12.4))") polys(i)%num_pts, polys(i)%type_poly, &
-                0.d0, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
+                polys(i)%reflect_coeff, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
         do j=1,polys(i)%num_pts
             write(outputtrace_unit,"(13(1pe12.4))") polys(i)%pts(j)%z, polys(i)%pts(j)%r, &
                 0.d0, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
@@ -633,7 +645,7 @@ module initialize_mod
     ! read in the polygons
     open(unit=spoly_u,file='geom/spoly.dat',status='old',action='read')
     do i=1,num_polys
-      read(spoly_u,*) polys(i)%num_pts, polys(i)%type_poly
+      read(spoly_u,*) polys(i)%num_pts,polys(i)%type_poly,polys(i)%reflect_coeff
       ! allocate space for the points in the polygon
       allocate(polys(i)%pts(polys(i)%num_pts))
       do j=1,polys(i)%num_pts
@@ -1221,6 +1233,28 @@ subroutine initialize_trace_collide_data
 !This subroutine initializes the collision parameters for the trace particles
 !Trace switch is set in core.f90
 use constants_mod
+use simulation_mod
+!First load the argon id code:
+particle_code=1.1180E+00
+!The name of the element is encoded in a real number to make it backwards
+!compatable with old post processing software.
+!The first two digits save the first letter of the Element
+!They are encoded as 11=A;12=B; up to 36=Z; 
+!(The decimal point is ignored)
+!Starting at 11 avoids rounding problems when the number is printed
+!The 3rd and forth digits hold the second letter of the element.
+! 00 means there is no second letter, then the rest of the alphabet
+! is encoded as 01 = a, 02=b, up to 26=z;
+!A few examples:
+  ! for argon, the element is Ar, A=11, r=18,
+  ! so the first four digits would be 1.118
+  !Carbon - (C) C=13, and there is no second digit,
+  !So C -> 1.300
+!The fifth digit is set to 1 for ions and 0 for neutrals
+!The second digit of the exponent saves whether the particle 
+!was in the background flow (0) or is analyte (1)
+!for example: Neutral argon background flow is 1.1180E+00
+!whereas Argon ion analyte flow is 1.1181E+01
 
   if(trace_switch.eq.1)then !Barium
 
@@ -1232,6 +1266,7 @@ use constants_mod
      nu_tr1 = 0.823
      bref_tr=1.41d-19
      nu_tr2=0d0
+     trace_code=1.2011E+01
 
   elseif(trace_switch.eq.2)then !Calcium
 
@@ -1243,7 +1278,7 @@ use constants_mod
      nu_tr1 = 0.842
      bref_tr=1.21d-19
      nu_tr2=0d0
-
+     trace_code=1.3011E+01
 
   elseif(trace_switch.eq.3)then !Argon
 
@@ -1255,7 +1290,7 @@ use constants_mod
      nu_tr1 =   0.162d0
      bref_tr =  1.10d-30
      nu_tr2=   -1.57d0
-
+     trace_code=1.1181E+01
 
 
   end if

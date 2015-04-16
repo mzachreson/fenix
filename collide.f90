@@ -33,7 +33,7 @@ contains
       ! do trace particle collisions
       call trace_collide(cells(i))
       ! do trace particle self collisions
-      if(nanbu_switch.eq.1) call trace_self_collide(cells(i))
+      if(nanbu_switch) call trace_self_collide(cells(i))
     end do
   end subroutine collide
 

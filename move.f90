@@ -117,7 +117,7 @@ module move_mod
         !in core.f90, in the cell_type.  Turn this section on when needed by
         !setting fluid_switch to 1 in core.f90, in the constants_mod.  This
         !section must be on in order for Nanbu collsions to work
-        if(fluid_switch.eq.1) then
+        if(fluid_switch) then
            !Read in the number of timesteps that will be stored.    
            num_dens=size(cl%dens)
 
