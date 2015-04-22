@@ -187,7 +187,7 @@ implicit none
     type(point_type), pointer, dimension(:) :: pts
     integer num_pts
     integer type_poly
-    real(8) reflect_coeff
+    real(8) reflect_coeff, temperature
   end type polygon_type
   
   

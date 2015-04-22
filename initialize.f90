@@ -349,7 +349,7 @@ module initialize_mod
     ! normal output.txt file
     do i=1,num_polys
         write(output_unit,"(2(1x,i5),11(1pe12.4))") polys(i)%num_pts, polys(i)%type_poly, &
-                polys(i)%reflect_coeff, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
+                polys(i)%reflect_coeff, polys(i)%temperature,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
         do j=1,polys(i)%num_pts
             write(output_unit,"(13(1pe12.4))") polys(i)%pts(j)%z, polys(i)%pts(j)%r, &
                 0.d0, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
@@ -359,7 +359,7 @@ module initialize_mod
     ! trace particle output_trace.txt file
     do i=1,num_polys
         write(outputtrace_unit,"(2(1x,i5),11(1pe12.4))") polys(i)%num_pts, polys(i)%type_poly, &
-                polys(i)%reflect_coeff, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
+                polys(i)%reflect_coeff, polys(i)%temperature,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
         do j=1,polys(i)%num_pts
             write(outputtrace_unit,"(13(1pe12.4))") polys(i)%pts(j)%z, polys(i)%pts(j)%r, &
                 0.d0, 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
@@ -645,7 +645,7 @@ module initialize_mod
     ! read in the polygons
     open(unit=spoly_u,file='geom/spoly.dat',status='old',action='read')
     do i=1,num_polys
-      read(spoly_u,*) polys(i)%num_pts,polys(i)%type_poly,polys(i)%reflect_coeff
+      read(spoly_u,*) polys(i)%num_pts,polys(i)%type_poly,polys(i)%reflect_coeff,polys(i)%temperature
       ! allocate space for the points in the polygon
       allocate(polys(i)%pts(polys(i)%num_pts))
       do j=1,polys(i)%num_pts
