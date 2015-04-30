@@ -1291,7 +1291,27 @@ particle_code=1.1180E+00
      bref_tr =  1.10d-30
      nu_tr2=   -1.57d0
      trace_code=1.1181E+01
+  elseif(trace_switch.eq.4)then !Lithium
+     tr_q = 1.60217646e-19 ! Charge in C
+     tr_m = 1.152e-26 !Mass in kg                
 
+     !Collision Parameters
+     aref_tr =8.163e-15 
+     nu_tr1 = 0.604
+     bref_tr = -3.873e-20
+     nu_tr2 = 0
+     trace_code=2.2091E+01
+
+  elseif(trace_switch.eq.4)then !Mercury
+     tr_q = 1.60217646e-19 ! Charge in C
+     tr_m = 1.152e-26 !Mass in kg                
+
+     !Collision Parameters
+     aref_tr =2.451e-16
+     nu_tr1 = 0.3389
+     bref_tr = -3.69e-19
+     nu_tr2 = 0
+     trace_code=1.8071E+01
 
   end if
 
