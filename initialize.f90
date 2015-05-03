@@ -1302,7 +1302,7 @@ particle_code=1.1180E+00
      nu_tr2 = 0
      trace_code=2.2091E+01
 
-  elseif(trace_switch.eq.4)then !Mercury
+  elseif(trace_switch.eq.5)then !Mercury
      tr_q = 1.60217646e-19 ! Charge in C
      tr_m = 1.152e-26 !Mass in kg                
 
