@@ -163,7 +163,7 @@ module inflow_mod
         ! set the central trace density to the average of the argon density over
         ! ndens_grid
 
-       	n_not = navg    ! set the trace density artificially high because we
+       	n_not = 5*navg    ! set the trace density artificially high because we
                         ! treat them as a trace species, i.e., no self collisions
                         ! only collisions with argon. This means that the trace
                         ! density is arbitrary, and we choose it high to get good

@@ -1,12 +1,6 @@
 
 
 
-
-
-
-
-
-
 !----- collide_mod -----
 ! This fortran module defines the routine for collisions
 module collide_mod
@@ -23,18 +17,34 @@ contains
     use core_data_mod
     use simulation_mod
     use constants_mod
+!kluge   use parallel_info_mod
     implicit none
     integer i
+! kluge
+!   integer iflag
+!   iflag=0
 
 
     do i=1,num_cells
+
+! kluge look for cells that have z=3.3.89e-4 in them
+!     if(cells(i)%min_z.lt.3.89e-4.and.cells(i)%max_z.gt.3.89e-4) then
+!        write(*,*) mpi_rank,i,cells(i)%min_r,cells(i)%max_r
+!        iflag = 1
+!     end if
+
       ! do normal particle collisions
       call cell_collide_subdivide(cells(i))
       ! do trace particle collisions
-      call trace_collide(cells(i))
+      call trace_collide(cells(i),i)
       ! do trace particle self collisions
       if(nanbu_switch) call trace_self_collide(cells(i))
     end do
+
+! kluge
+!     if(iflag.eq.1) stop 666
+
+
   end subroutine collide
 
 
@@ -45,6 +55,7 @@ contains
   subroutine cell_collide_subdivide(cl)
     use helpers_mod
     use core_types_mod
+
     implicit none
     type(cell_type) cl
     integer num_fracs, j, kmin, kmax
@@ -55,9 +66,9 @@ contains
 
     ! control growth of max_vrel2
     cl%max_vrel2 = cl%max_vrel2 * .999
-    
+
     if(cl%partition .le. 1) return
-    
+
     ! I want to make sure that each sub-collision cell has at least 7 particles
     num_fracs = cl%partition / 7
 
@@ -104,7 +115,7 @@ contains
     real(8) frac
     integer n1, n2
     integer num_parts
-    
+
     real(8) rnum_candidates
     integer num_candidates
     integer i,j,k,l
@@ -122,7 +133,7 @@ contains
     data alpha/1.66/
     vexp=0.5d0-nu
     rexp=1.d0/alpha
-    
+
     num_parts = n2-n1+1
 
     ! compute number of candidates
@@ -263,16 +274,22 @@ contains
 
     ! collides all the trace-element particles
     ! which are in the ps array from index "partition+1" to "num_parts"
-    subroutine trace_collide(cl)  ! trace particles collide with argon, argon is unchanged
+    subroutine trace_collide(cl,icell)  ! trace particles collide with argon, argon is unchanged
         use core_types_mod
         use simulation_mod
         use constants_mod
         use helpers_mod
+! kluge
+    use parallel_info_mod
+
         implicit none
+
+! kluge
+        integer icell
 
         type(cell_type) :: cl
         integer :: num_tr_parts, num_norm_parts
-    
+
         real(8) rnum_candidates
         integer num_candidates
         integer i,j,k,l
@@ -300,22 +317,38 @@ contains
 
         ! too few particles to collide, so return
         if( num_norm_parts <= 1 .or. num_tr_parts <= 1 ) return
-      
+
         ! control growth of tr_max_vrel2
         cl%tr_max_vrel2 = cl%tr_max_vrel2 * .999
-  
+
         ! compute number of candidates
        !sigmavrmax = aref_tr/cl%aref_ambi*cl%tr_max_vrel2**vexp !old cross
        !section
        !New two nu cross section:
        sigmavrmax = (aref_tr*cl%tr_max_vrel2**(0.5d0-nu_tr1)+bref_tr*cl%tr_max_vrel2**(0.5d0-nu_tr2))/cl%aref_ambi
-        num_candidates = round_rand(Nef*tau*sigmavrmax*num_norm_parts*(num_norm_parts-1.d0)/(cl%volume))
+
+        num_candidates = round_rand(Nef*tau*sigmavrmax*num_norm_parts*(num_tr_parts-0.d0)/(cl%volume))
+
         !Check for errors in aref_ambi implementation
         if(sigmavrmax.ne.sigmavrmax)then
            write(*,*) 'broken cross-section', cl%aref_ambi, cur_step
            stop 1234
         end if
-        ! Questions about the above equation:
+
+! kluge
+!        if(mpi_rank.eq.0.and.icell.eq.501950) then
+!            write(*,*) 'num_norm_parts  num_tr_parts  cl%tr_max_vrel2'
+!            write(*,*)  num_norm_parts, num_tr_parts, cl%tr_max_vrel2
+!            write(*,*) 'sigmavrmax  num_candidates  Nef'
+!            write(*,*)  sigmavrmax , num_candidates,  Nef
+!            write(*,*) 'tau  cl%volume'
+!            write(*,*)  tau, cl%volume
+!!           stop 666
+!        end if
+
+
+
+         ! Questions about the above equation:
         !  1. Do we use "num_norm_parts" or "num_tr_parts", or both?
         !  2. Will we use a different version of "Nef", for the trace particles? Will we also use the normal particles' Nef?
 
@@ -426,7 +459,7 @@ contains
     implicit none
     type(cell_type) cl
     integer :: num_parts, num_ions, num_electrons, num_part_types, Ncoll
-    real(8) :: vthe, me 
+    real(8) :: vthe, me
     real(8) :: dt, A, vrel(3), h(3), vperp, vrelmag, Aab, lD, mu
     real(8) :: taun !Nanbu's tau, not to be confused with the simulation timestep, tau
     real(8) :: vxe, vye, vze
@@ -444,7 +477,7 @@ contains
     !make sure there is an ion to collide
     num_ions=cl%num_parts-cl%partition
     if(num_ions.lt.1) return
-    
+
     !Skip if temp and dens are not loaded
     if(cl%densavg.lt.1d-6.or.cl%tempavg.lt.1d-6) return
 
@@ -455,15 +488,15 @@ contains
     ndens=2d0*cl%densavg*1e3/Nef !gives the number density of all charged species, assuming ni=ne
 
    !Now do collisions
-   !Make random collision pairs list 
+   !Make random collision pairs list
 
    allocate(coll_pairs(num_ions))
-   
+
    do i=1,num_ions
       if (i.gt.num_ions) write(*,*) 'Coll_pairs on line 457'
       coll_pairs(i)=i+cl%partition
    end do
-   
+
    !Randomize lists using the Knuth shuffle
       do i=1,num_ions-1
          l=num_ions+1-i
@@ -478,14 +511,14 @@ contains
 
       end do
 
-   
+
    ! Now do electron-ion collisions
    Ncoll=ceiling(num_ions/2d0)  !Number of interspecies collisions, rounded up
                                 ! So that single ions collide with an electron
 
-   
 
-   
+
+
    lD=sqrt(e0*kb*cl%tempavg/cl%densavg/tr_q**2) !Debye length
    mu=tr_m*me/(tr_m+me)
 
@@ -501,7 +534,7 @@ contains
       k=coll_pairs(i) !ion number
       ! Now create a thermal electron to collide with
       call rand_mt(tmp1)
-      call rand_mt(tmp2) 
+      call rand_mt(tmp2)
       tmp2=2.d0*pi*tmp2
       tmp=vthe*sqrt(-2.d0*log(tmp1))
       vxe=tmp*cos(tmp2)
@@ -509,7 +542,7 @@ contains
       call rand_mt(tmp2)
       tmp2=2*pi*tmp2
       vze=tmp*cos(tmp2)
- !  write(15,'(3(1pe12.4),I5)') ps(i)%vx, ps(i)%vy, ps(i)%vz, 1 
+ !  write(15,'(3(1pe12.4),I5)') ps(i)%vx, ps(i)%vy, ps(i)%vz, 1
 
       vrel(1)=cl%ps(k)%vx-vxe
       vrel(2)=cl%ps(k)%vy-vye
@@ -518,7 +551,7 @@ contains
       vrelmag=sqrt(vperp**2+vrel(1)**2)
 
 !write(*,*) 'Relative velocity', vrel(1), vrel(2), vrel(3), vperp, vrelmag
-!write(*,*) 'Loop info', i,k,l     
+!write(*,*) 'Loop info', i,k,l
       taun=Aab*tau/vrelmag**3
       tmp=exp(-taun)
       A=1.d0/(1.d0-tmp)+(-2.1939+2.6742*tmp-1.2038*tmp**2+1.4485*tmp**3)*exp(-.7856d0/(1.d0-tmp))
@@ -541,7 +574,7 @@ contains
 
 
 
-   
+
       !set post collision velocities
       cl%ps(k)%vx=cl%ps(k)%vx+mu/tr_m*(vrel(1)*(1.d0-coschi)+h(1)*sinchi)
       cl%ps(k)%vy=cl%ps(k)%vy+mu/tr_m*(vrel(2)*(1.d0-coschi)+h(2)*sinchi)
@@ -561,13 +594,13 @@ contains
 !Now do ion-ion collisions
     !Skip if only one ion remains
     if(num_ions-Ncoll.le.1) return
-   
+
 
     !Redefine reduced mass
        mu=.5*tr_m
        loglambda=log(4*pi*e0*mu*((6*kb*(cl%tempavg/tr_m)))*lD/tr_m**2)
    Aab=ndens*.25/pi*(tr_m**2/e0/mu)**2*loglambda
-   
+
 
    do i=1,INT((num_ions-Ncoll)/2)
       if (2*i+Ncoll.gt.num_ions) write(*,*) 'Coll_pairs on line 569'
@@ -581,7 +614,7 @@ contains
       vrelmag=sqrt(vperp**2+vrel(1)**2)
 
 !write(*,*) 'Relative velocity', vrel(1), vrel(2), vrel(3), vperp, vrelmag
-      
+
       taun=Aab*tau/vrelmag**3
       tmp=exp(-taun)
       A=1.d0/(1.d0-tmp)+(-2.1939+2.6742*tmp-1.2038*tmp**2+1.4485*tmp**3)*exp(-.7856d0/(1.d0-tmp))
@@ -604,7 +637,7 @@ contains
 
 
 
-   
+
       !set post collision velocities
       cl%ps(l)%vx=cl%ps(l)%vx-mu/tr_m*(vrel(1)*(1.d0-coschi)+h(1)*sinchi)
       cl%ps(l)%vy=cl%ps(l)%vy-mu/tr_m*(vrel(2)*(1.d0-coschi)+h(2)*sinchi)

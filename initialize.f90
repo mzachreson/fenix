@@ -17,12 +17,13 @@ module initialize_mod
     call basic_initialization
 
     call read_geometry
+    call initialize_trace_collide_data  ! call before initialize_collision_cells so that tr_m is set
+
     call initialize_collision_cells
     call initialize_fine_cells
     call initialize_polys
     call initialize_masks
     
-    call initialize_trace_collide_data 
     call initialize_boundaries
     call initialize_output
     call initialize_communication
@@ -480,6 +481,8 @@ module initialize_mod
     parameter(collstuff_u=202)
     type(cell_type) c
     integer i,j
+
+
   
     ! first count how many cells there are
     ! also find out the maximum mask index is while reading in this file
