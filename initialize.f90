@@ -1267,7 +1267,7 @@ particle_code=1.1180E+00
      !Collision Parameters
      aref_tr = 4.61d-14
      nu_tr1 = 0.823
-     bref_tr=1.41d-19
+     bref_tr=8.52e-20
      nu_tr2=0d0
      trace_code=1.2011E+01
 
@@ -1279,7 +1279,7 @@ particle_code=1.1180E+00
      !Collision Parameters
      aref_tr = 8.575d-14
      nu_tr1 = 0.842
-     bref_tr=1.21d-19
+     bref_tr=7.29e-20
      nu_tr2=0d0
      trace_code=1.3011E+01
 
@@ -1301,7 +1301,7 @@ particle_code=1.1180E+00
      !Collision Parameters
      aref_tr =8.163e-15 
      nu_tr1 = 0.604
-     bref_tr = -3.873e-20
+     bref_tr = -2.333e-20
      nu_tr2 = 0
      trace_code=2.2091E+01
 
@@ -1312,7 +1312,7 @@ particle_code=1.1180E+00
      !Collision Parameters
      aref_tr =2.451e-16
      nu_tr1 = 0.3389
-     bref_tr = -3.69e-19
+     bref_tr = -2.39e-19
      nu_tr2 = 0
      trace_code=1.8071E+01
 
