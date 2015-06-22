@@ -897,8 +897,8 @@ contains
 ! keep the densities proportional. If a different density is needed,
 ! use acceptance rejection here
 
-            p0%element=1 ! trace particle
-            call cell_insert_particle(c, p0)
+!           p0%element=1 ! trace particle
+!           call cell_insert_particle(c, p0)
 
 !             write(311,101) mpi_rank,p0%x,p0%z,p0%vx,p0%vy,p0%vz
         end if

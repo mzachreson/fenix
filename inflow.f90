@@ -395,7 +395,7 @@ module inflow_mod
                     intrp = fr*fz*T_grid(i+1,j+1)+fr*(1.d0-fz)*T_grid(i+1,j)+ &
                                 (1.d0-fr)*(1.d0-fz)*T_grid(i,j)+(1.d0-fr)*fz*T_grid(i,j+1)
 
-                    vth = sqrt(kb*intrp/m)
+                    vth = sqrt(kb*intrp/tr_m)
 
 
                     ! interpolate velocities at this position
