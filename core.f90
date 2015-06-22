@@ -139,14 +139,14 @@ implicit none
     real(8) min_th,max_th
     real(8) max_vrel2, tr_max_vrel2
     real(8) volume
-    real(8) efield_r
-    real(8) efield_z
-    real(8) Te
-    real(8) extra 
-    real(8) num_cand_remaining
+    real(8) :: efield_r=0
+    real(8) :: efield_z=0
+    real(8) :: Te=0
+    real(8) :: extra=0
+    real(8) :: num_cand_remaining=0
     real(8) dens(50), vr_fluid(50), vz_fluid(50), Temp(50)
     real(8) densavg, vr_fluidavg, vz_fluidavg, tempavg
-    real(8) aref_ambi
+    real(8) :: aref_ambi
     integer mask
   end type cell_type
 
