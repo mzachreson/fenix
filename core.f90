@@ -146,12 +146,7 @@ implicit none
     real(8) :: num_cand_remaining=0
     real(8) dens(50), vr_fluid(50), vz_fluid(50), Temp(50)
     real(8) densavg, vr_fluidavg, vz_fluidavg, tempavg
-<<<<<<< HEAD
     integer mask,firstflag,firstflag_tr
-=======
-    real(8) :: aref_ambi
-    integer mask
->>>>>>> 1c7889fcf516d91d58e964feb676c087c9b123d4
   end type cell_type
 
   type sampling_cell_type
