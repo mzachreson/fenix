@@ -202,6 +202,11 @@ contains
     gc(i)%capacity = start_gc_capac
     allocate(gc(i)%ps(start_gc_capac))
 
+! initialize everything else to zero
+   gc(i)%efield_r=0.d0
+   gc(i)%efield_z=0.d0
+
+
 
   end subroutine initialize_gc
 
@@ -279,7 +284,7 @@ contains
    i=itop
 
      if(mpi_rank.eq.0) then
-   write(*,*) 'jstart,jend: ',jstart,jend
+!  write(*,*) 'jstart,jend: ',jstart,jend
    end if
 
    do j=jstart,jend
@@ -528,7 +533,7 @@ contains
   ! actually flushes and repopulates the ghost cells
   subroutine do_bc
     implicit none
-    integer i
+    integer i,j
 
     do i=1,num_gc
       !flush the ghost cell
@@ -537,13 +542,14 @@ contains
 
       if(gc_type(i) .eq. 1)then
         call do_left_bc(gc(i))
-      else if(gc_type(i) .eq. 2)then
-        call do_top_bc(gc(i))
-      else if(gc_type(i) .eq. 3)then
-        call do_right_bc(gc(i))
+       else if(gc_type(i) .eq. 2)then
+         call do_top_bc(gc(i))
+       else if(gc_type(i) .eq. 3)then
+         call do_right_bc(gc(i))
       end if
 
     end do
+
   end subroutine do_bc
 
 

@@ -18,11 +18,18 @@ contains
     use simulation_mod
     use constants_mod
 !kluge   use parallel_info_mod
+    use parallel_info_mod
     implicit none
     integer i
+    real(8) tot_coll,tot_cand
 ! kluge
 !   integer iflag
 !   iflag=0
+
+
+! watch candidates vs. collisions
+    tot_coll=0.d0
+    tot_cand=0.d0
 
 
     do i=1,num_cells
@@ -34,7 +41,7 @@ contains
 !     end if
 
       ! do normal particle collisions
-      call cell_collide_subdivide(cells(i))
+      call cell_collide_subdivide(cells(i),tot_coll,tot_cand)
       ! do trace particle collisions
       call trace_collide(cells(i),i)
       ! do trace particle self collisions
@@ -44,6 +51,10 @@ contains
 ! kluge
 !     if(iflag.eq.1) stop 666
 
+!kluge
+!      write(*,101) mpi_rank,tot_cand/tot_coll,tot_cand,tot_coll
+101   format(' Collide:  tot_cand/tot_coll: ',i5,3(1pe12.4))
+
 
   end subroutine collide
 
@@ -52,20 +63,93 @@ contains
 
 
 
-  subroutine cell_collide_subdivide(cl)
+  subroutine cell_collide_subdivide(cl,tot_coll,tot_cand)
     use helpers_mod
     use core_types_mod
+    use constants_mod
+    use simulation_mod
 
     implicit none
     type(cell_type) cl
     integer num_fracs, j, kmin, kmax
-    real(8) zmin, zmax, frac, dn
+    real(8) zmin, zmax, frac, dn,sigmavr,vexp
+
+
+
+
+!kluge
+    integer num_parts,jj,k,i,num_coll,Npairs,num_candidates
+    real(8) tot_coll,tot_cand
+    real(8) vrel2,avgsigmavr,coll_target
+
+
+  ! if this is the first time there are 2 or more particles in this cell,
+  ! run over the collision pairs and find the maximum value of sigma*vr
+    vexp = 0.5d0-nu
+
+
+    if(cl%firstflag.eq.1.and.cl%partition.ge.2) then
+	cl%firstflag=0
+        cl%sigmavrmax=0.d0
+        do i=1,cl%partition
+         do j=i+1,cl%partition
+
+           vrel2 =  (cl%ps(j)%vx-cl%ps(i)%vx)**2 + &
+                    (cl%ps(j)%vy-cl%ps(i)%vy)**2 + &
+                    (cl%ps(j)%vz-cl%ps(i)%vz)**2
+           sigmavr = aref*vrel2**vexp
+           cl%sigmavrmax = max(cl%sigmavrmax,sigmavr)
+
+         end do
+       end do
+   end if
+
+!test !kluge: average sigma*vr by running over all of the pairs
+!test ! in just one collision cell, # 5241
+!test
+!test
+!test     vexp=0.5d0-nu
+!test
+!test       num_parts=cl%partition
+!test
+!test       num_coll=0
+!test       if(cl%min_r.lt.0.39d-3.and.cl%max_r.gt.0.39d-3.and.cl%min_z.lt.0.2d-3.and.cl%max_z.gt.0.2d-3) then
+!test         Npairs=cl%partition*(cl%partition-1)/2
+!test
+!test         if(Npairs.gt.0) then
+!test             avgsigmavr=0.d0
+!test             do jj=1,num_parts
+!test             do i=jj+1,num_parts
+!test                      k = i
+!test                      j = jj
+!test
+!test                      vrel2 =  (cl%ps(j)%vx-cl%ps(k)%vx)**2 + &
+!test                      (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
+!test                      (cl%ps(j)%vz-cl%ps(k)%vz)**2
+!test                    ! write(*,*) 'j,k,vrel2',j,k,vrel2
+!test                      avgsigmavr = avgsigmavr + aref*vrel2**vexp
+!test
+!test             end do
+!test             end do
+!test
+!test           ! write(*,*) 'aref_tr,nu_tr1,bref_tr,nu_tr2', aref_tr,nu_tr1,bref_tr,nu_tr2
+!test
+!test             avgsigmavr = avgsigmavr/Npairs
+!test           ! write(*,*) 'avgsigmavr,cl%volume,Nef',avgsigmavr,cl%volume,Nef
+!test             coll_target = 0.5d0*Nef*cl%partition*(cl%partition-1)/cl%volume*avgsigmavr*tau
+!test           ! write(*,*) 'Test cell, collision target: ',coll_target
+!test
+!test
+!test         end if
+!test
+!test       end if
+!test !
 
     ! zero out all of the previous collision partners
     cl%ps(:)%prev_coll = 0
 
-    ! control growth of max_vrel2
-    cl%max_vrel2 = cl%max_vrel2 * .999
+    ! control growth of sigmavrmax
+    cl%sigmavrmax = cl%sigmavrmax *0.98
 
     if(cl%partition .le. 1) return
 
@@ -73,7 +157,9 @@ contains
     num_fracs = cl%partition / 7
 
     if(num_fracs .le. 1)then
-      call cell_collide(cl, 1.d0, 1, cl%partition)
+      call cell_collide(cl, 1.d0, 1, cl%partition,num_coll,num_candidates)
+      tot_coll=tot_coll+num_coll
+      tot_cand=tot_cand+num_candidates
     else
       call sortZ(cl%ps, 1, cl%partition)
       dn = dble(cl%partition)/dble(num_fracs)
@@ -94,9 +180,17 @@ contains
         end if
         ! collide!
         frac = (zmax-zmin)/(cl%max_z - cl%min_z)
-        call cell_collide(cl, frac, kmin, kmax)
+        call cell_collide(cl, frac, kmin, kmax,num_coll,num_candidates)
+        tot_coll=tot_coll+num_coll
+        tot_cand=tot_cand+num_candidates
       end do
     end if
+
+
+!     if(cl%min_r.lt.0.39d-3.and.cl%max_r.gt.0.39d-3.and.cl%min_z.lt.0.2d-3.and.cl%max_z.gt.0.2d-3) then
+!      write(*,*) 'No. of argon collisions and target: ',num_coll,coll_target
+!     end if
+
   end subroutine cell_collide_subdivide
 
 
@@ -105,7 +199,7 @@ contains
   !--- cell_collide (VSS) ---
   ! This subroutine collides the molecules in a given cell
   ! according to the variable soft sphere collider
-  subroutine cell_collide(cl, frac, n1, n2)  ! collides argon with argon
+  subroutine cell_collide(cl, frac, n1, n2,num_coll,num_candidates)  ! collides argon with argon
     use simulation_mod
     use core_types_mod
     use constants_mod
@@ -118,7 +212,7 @@ contains
 
     real(8) rnum_candidates
     integer num_candidates
-    integer i,j,k,l
+    integer i,j,k,l,jj
     real(8) dist2, min_dist2
     real(8) temp,vrel2,vrel
     real(8) phi,cos_theta,sin_theta,cos_phi,sin_phi,dvz_sin_phi,vrel_cos_phi
@@ -127,18 +221,25 @@ contains
     real(8) vperp,vperpi
     real(8) vrx_cm,vry_cm,vrz_cm
     real(8) cmx,cmy,cmz
-    integer nearswitch
+    integer nearswitch,num_coll
     real(8) alpha,vexp,rexp
-    real(8) sigmavrmax,sigmachk
+    real(8) sigmavr,Npairs,avgsigmavr,coll_target
+
+
     data alpha/1.66/
     vexp=0.5d0-nu
     rexp=1.d0/alpha
 
     num_parts = n2-n1+1
 
+
+
+    num_coll=0 ! zero this before processing collisions
+
+
+
     ! compute number of candidates
-    sigmavrmax = aref*cl%max_vrel2**vexp
-    num_candidates = round_rand(Nef*tau*0.5d0*sigmavrmax*num_parts*(num_parts-1.d0)/(frac*cl%volume)) !&
+    num_candidates = round_rand(Nef*tau*0.5d0*cl%sigmavrmax*num_parts*(num_parts-1.d0)/(frac*cl%volume)) !&
                     !+ cl%num_cand_remaining
     !num_candidates = int(rnum_candidates)
 
@@ -180,14 +281,18 @@ contains
                (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
                (cl%ps(j)%vz-cl%ps(k)%vz)**2
 
-      cl%max_vrel2 = max(vrel2, cl%max_vrel2)
-      sigmachk = aref*vrel2**vexp
+! get sigma*vr and push the maximum up if necessary
+      sigmavr = aref*vrel2**vexp
+      cl%sigmavrmax = max(sigmavr,cl%sigmavrmax)
+
       call rand_mt(temp)
       ! if rejecting this candidate, call 'cycle'
-      if(sigmachk .le. temp*sigmavrmax)then
+      if(sigmavr  .le. temp*cl%sigmavrmax)then
         cycle
       end if
       ! this candidate is accepted
+
+      num_coll=num_coll+1
       !update the collision partners
       cl%ps(j)%prev_coll = k
       cl%ps(k)%prev_coll = j
@@ -266,6 +371,7 @@ contains
 
     ! end of main collide loop
     end do
+
     return
   end subroutine cell_collide
 
@@ -285,7 +391,9 @@ contains
         implicit none
 
 ! kluge
-        integer icell
+        integer icell,num_coll
+        real(8) avgsigmavr,Npairs,coll_target
+!kluge
 
         type(cell_type) :: cl
         integer :: num_tr_parts, num_norm_parts
@@ -303,53 +411,100 @@ contains
         real(8) cmx,cmy,cmz
         integer nearswitch
         real(8) alpha,vexp,rexp
-        real(8) sigmavrmax,sigmachk
-        data alpha/1.66/
-  !     vexp=0.5d0-nu_tr
-        rexp=1.d0/alpha
+        real(8) sigmavrmax,sigmavr
 
-        if(cur_step.eq.1) cl%aref_ambi=2.d0  !Set Te=Ti on the first step.
-                                           !aref_ambi is later calculated in
-                                           !move.f90
+
+
+
 
         num_tr_parts = cl%num_parts - cl%partition
         num_norm_parts = cl%partition
 
+
+  ! if this is the first time there are 2 or more particles in this cell,
+  ! run over the collision pairs and find the maximum value of sigma*vr
+    if(cl%firstflag_tr.eq.1.and.num_tr_parts.gt.1.and.num_norm_parts.gt.1) then
+	cl%firstflag_tr=0
+        cl%tr_sigmavrmax=0.d0
+             do j=1,num_tr_parts
+             do i=1,num_norm_parts
+                      k = num_norm_parts + i
+                      vrel2 =  (cl%ps(j)%vx-cl%ps(k)%vx)**2 + &
+                      (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
+                      (cl%ps(j)%vz-cl%ps(k)%vz)**2
+                      cl%tr_sigmavrmax = max(cl%tr_sigmavrmax, aref_tr*vrel2**(.5d0-nu_tr1)+bref_tr*vrel2**(.5d0-nu_tr2) )
+
+             end do
+             end do
+    end if
+
+
+
+
+  !     vexp=0.5d0-nu_tr
+        rexp=1.d0/alpha
+
+
+
+
+
+!test !kluge: average sigma*vr by running over all of the pairs
+!test ! in just one collision cell, # 5241
+!test
+!test       num_coll=0
+!test       if(cl%min_r.lt.0.39d-3.and.cl%max_r.gt.0.39d-3.and.cl%min_z.lt.0.2d-3.and.cl%max_z.gt.0.2d-3) then
+!test         Npairs=num_tr_parts*num_norm_parts
+!test !       write(*,*) 'num_tr_parts,num_norm_parts,Npairs:',num_tr_parts,num_norm_parts,Npairs
+!test !       write(*,*) 'rmin,rmax,zmin,zmax: ',cl%min_r,cl%max_r,cl%min_z,cl%max_z
+!test !       write(*,*) 'aref_ambi: ',cl%aref_ambi
+!test
+!test         if(Npairs.gt.0) then
+!test             avgsigmavr=0.d0
+!test             do j=1,num_tr_parts
+!test             do i=1,num_norm_parts
+!test                      k = num_norm_parts + i
+!test                      vrel2 =  (cl%ps(j)%vx-cl%ps(k)%vx)**2 + &
+!test                      (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
+!test                      (cl%ps(j)%vz-cl%ps(k)%vz)**2
+!test                    ! write(*,*) 'j,k,vrel2',j,k,vrel2
+!test                      avgsigmavr = avgsigmavr +  aref_tr*vrel2**(.5d0-nu_tr1)+bref_tr*vrel2**(.5d0-nu_tr2)
+!test
+!test             end do
+!test             end do
+!test
+!test           ! write(*,*) 'aref_tr,nu_tr1,bref_tr,nu_tr2', aref_tr,nu_tr1,bref_tr,nu_tr2
+!test
+!test             avgsigmavr = avgsigmavr/Npairs
+!test           ! write(*,*) 'avgsigmavr,cl%volume,Nef',avgsigmavr,cl%volume,Nef
+!test             coll_target = Nef*num_norm_parts/cl%volume*avgsigmavr*tau*num_tr_parts
+!test           ! write(*,*) 'Test cell, collision target: ',coll_target
+!test
+!test
+!test         end if
+!test
+!test       end if
+!test !
+
         ! too few particles to collide, so return
         if( num_norm_parts <= 1 .or. num_tr_parts <= 1 ) return
 
-        ! control growth of tr_max_vrel2
-        cl%tr_max_vrel2 = cl%tr_max_vrel2 * .999
+        ! control growth of sigmavrmax
+        cl%tr_sigmavrmax = cl%tr_sigmavrmax *0.98
 
         ! compute number of candidates
-       !sigmavrmax = aref_tr/cl%aref_ambi*cl%tr_max_vrel2**vexp !old cross
-       !section
-       !New two nu cross section:
-       sigmavrmax = (aref_tr*cl%tr_max_vrel2**(0.5d0-nu_tr1)+bref_tr*cl%tr_max_vrel2**(0.5d0-nu_tr2))/cl%aref_ambi
 
-        num_candidates = round_rand(Nef*tau*sigmavrmax*num_norm_parts*(num_tr_parts-0.d0)/(cl%volume))
 
-        !Check for errors in aref_ambi implementation
-        if(sigmavrmax.ne.sigmavrmax)then
-           write(*,*) 'broken cross-section', cl%aref_ambi, cur_step
-           stop 1234
-        end if
+! round_rand method, rounding routine allows small numbers to round up
+!       num_candidates = round_rand(Nef*tau*cl%tr_sigmavrmax*num_norm_parts*num_tr_parts/(cl%volume))
 
-! kluge
-!        if(mpi_rank.eq.0.and.icell.eq.501950) then
-!            write(*,*) 'num_norm_parts  num_tr_parts  cl%tr_max_vrel2'
-!            write(*,*)  num_norm_parts, num_tr_parts, cl%tr_max_vrel2
-!            write(*,*) 'sigmavrmax  num_candidates  Nef'
-!            write(*,*)  sigmavrmax , num_candidates,  Nef
-!            write(*,*) 'tau  cl%volume'
-!            write(*,*)  tau, cl%volume
-!!           stop 666
-!        end if
-
+! fraction method
+         rnum_candidates = (Nef*tau*cl%tr_sigmavrmax*num_norm_parts*num_tr_parts/(cl%volume)) + cl%num_cand_remaining
+         num_candidates = int(rnum_candidates)
+         cl%num_cand_remaining = rnum_candidates - num_candidates
 
 
          ! Questions about the above equation:
-        !  1. Do we use "num_norm_parts" or "num_tr_parts", or both?
+        !  1. Do we use "num_norm_parts" or "num_tr_parts", or both? Answer: normal for density, trace for the the number to collide
         !  2. Will we use a different version of "Nef", for the trace particles? Will we also use the normal particles' Nef?
 
 
@@ -375,17 +530,19 @@ contains
                      (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
                      (cl%ps(j)%vz-cl%ps(k)%vz)**2
 
-            cl%tr_max_vrel2 = max(vrel2, cl%tr_max_vrel2)
-
-           ! sigmachk = aref_tr/cl%aref_ambi*vrel2**vexp !old code
+! compute sigmavr and adjust the ceiling on tr_sigmavrmax
             !Two nu cross section
-            sigmachk = (aref_tr*vrel2**(0.5d0-nu_tr1)+bref_tr*vrel2**(0.5d0-nu_tr2))/cl%aref_ambi
+            sigmavr = (aref_tr*vrel2**(0.5d0-nu_tr1)+bref_tr*vrel2**(0.5d0-nu_tr2))
+            cl%tr_sigmavrmax = max(sigmavr, cl%tr_sigmavrmax)
 
             call rand_mt(temp)
             ! if rejecting this candidate, call 'cycle'
-            if(sigmachk .le. temp*sigmavrmax)then
+            if(sigmavr .le. temp*cl%tr_sigmavrmax) then
                 cycle
             end if
+
+            !kluge
+            num_coll=num_coll+1
 
             !give new speeds
             call rand_mt(temp)
@@ -446,6 +603,9 @@ contains
         end do
 
 
+!     if(cl%min_r.lt.0.39d-3.and.cl%max_r.gt.0.39d-3.and.cl%min_z.lt.0.2d-3.and.cl%max_z.gt.0.2d-3) then
+!      write(*,*) 'No. of trace collisions and target: ',num_coll,coll_target
+!     end if
 
     end subroutine trace_collide
 
@@ -467,6 +627,8 @@ contains
     integer tmpint1, tmpint2, i,j,k,l
     integer, allocatable, dimension(:) :: coll_pairs ! variable for generating random collision pairs
     real(8) tmp, tmp1, tmp2
+
+
 
     !Fix unloaded variables if this is the first time step
     if(cur_step.eq.1)then

@@ -546,8 +546,15 @@ module initialize_mod
         c%max_th = pi
 
         c%num_cand_remaining = 0.d0
-        c%max_vrel2 = 3*kb*simT/m
-        c%tr_max_vrel2 = 3*kb*simT/tr_m
+
+        ! these are rough guesses; cell_collide will refine them the first time is called
+        ! for each cell
+        c%sigmavrmax = sqrt(3.d0*kb*simT/m)*1.d-20  ! starting point for sigma*vrmax, argon
+
+        c%tr_sigmavrmax = sqrt(3.d0*kb*simT/tr_m)*1.d-20  ! initial starting point for sigmavrmax~=sigma*vrmax
+        c%firstflag = 1 ! set the flag for cell-by-cell initialization of sigmavrmax
+        c%firstflag_tr = 1 ! set the flag for cell-by-cell initialization of tr_sigmavrmax
+
         c%num_parts = 0
         c%partition = 0
         c%num_left = 0
@@ -1267,7 +1274,7 @@ particle_code=1.1180E+00
      !Collision Parameters
      aref_tr = 4.61d-14
      nu_tr1 = 0.823
-     bref_tr=8.52e-20
+     bref_tr=1.41e-19
      nu_tr2=0d0
      trace_code=1.2011E+01
 
@@ -1279,7 +1286,7 @@ particle_code=1.1180E+00
      !Collision Parameters
      aref_tr = 8.575d-14
      nu_tr1 = 0.842
-     bref_tr=7.29e-20
+     bref_tr=1.12e-19
      nu_tr2=0d0
      trace_code=1.3011E+01
 

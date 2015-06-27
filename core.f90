@@ -63,7 +63,7 @@ module simulation_mod
   !the number of steps in the whole simulation
   integer nsteps
 
-  !the current step in the simulation 
+  !the current step in the simulation
   integer cur_step
 
   ! tau is the timestep
@@ -117,8 +117,8 @@ implicit none
   
   type particle_type
     real(8) :: x,y,z
-    real(8) :: r ! this variable is pre-computed for convenience; it is sqrt(x^2+y^2).  
-                 ! Note that we need it square-rooted for the datacollect anyway, so we might 
+    real(8) :: r ! this variable is pre-computed for convenience; it is sqrt(x^2+y^2).
+                 ! Note that we need it square-rooted for the datacollect anyway, so we might
                  ! as well just square root it right away
     real(8) :: vx,vy,vz
     integer :: prev_coll
@@ -137,7 +137,7 @@ implicit none
     real(8) min_r,max_r
     real(8) min_z,max_z
     real(8) min_th,max_th
-    real(8) max_vrel2, tr_max_vrel2
+    real(8) sigmavrmax, tr_sigmavrmax
     real(8) volume
     real(8) :: efield_r=0
     real(8) :: efield_z=0
@@ -146,8 +146,12 @@ implicit none
     real(8) :: num_cand_remaining=0
     real(8) dens(50), vr_fluid(50), vz_fluid(50), Temp(50)
     real(8) densavg, vr_fluidavg, vz_fluidavg, tempavg
+<<<<<<< HEAD
+    integer mask,firstflag,firstflag_tr
+=======
     real(8) :: aref_ambi
     integer mask
+>>>>>>> 1c7889fcf516d91d58e964feb676c087c9b123d4
   end type cell_type
 
   type sampling_cell_type
@@ -289,7 +293,7 @@ implicit none
   ! Masks
   type(mask_type),allocatable,dimension(:) :: masks
   ! max_mask and num_masks aren't necessarily the same. Example:  Masks: 1,2,3,5.  max_mask = 5.  num_masks = 4.
-  integer max_mask, min_mask   
+  integer max_mask, min_mask
   integer num_masks
   
   ! Sampling Cells
@@ -337,22 +341,22 @@ contains
 
   !--- is_inside ---
   ! This method determines whether a given position (r,z) is 'inside' a mask m
-  logical function is_inside(r,z,m)
+  logical function is_inside(r,z,msk)
     use core_types_mod
     implicit none
     real(8) r,z
-    type(mask_type)m
+    type(mask_type)msk
     real(8) pr, pz, inside1, inside2
 
-    pr = r - m%s0r
-    pz = z - m%s0z
-    inside1 = pr*m%g1r+pz*m%g1z
-    if(m%g2z .eq. 0 .and. m%g2r .eq. 0)then
+    pr = r - msk%s0r
+    pz = z - msk%s0z
+    inside1 = pr*msk%g1r+pz*msk%g1z
+    if(msk%g2z .eq. 0 .and. msk%g2r .eq. 0)then
       is_inside = inside1 .gt. 0.d0
       return
     end if
-    inside2 = pr*m%g2r+pz*m%g2z
-    if((m%w1r+m%w2r)*(m%g1r+m%g2r)+(m%w1z+m%w2z)*(m%g1z+m%g2z) .gt. 0)then
+    inside2 = pr*msk%g2r+pz*msk%g2z
+    if((msk%w1r+msk%w2r)*(msk%g1r+msk%g2r)+(msk%w1z+msk%w2z)*(msk%g1z+msk%g2z) .gt. 0)then
       is_inside = inside1 .gt. 0.d0 .and. inside2 .gt. 0.d0
     else
       is_inside = inside1 .gt. 0.d0 .or. inside2 .gt. 0.d0
@@ -399,7 +403,7 @@ contains
     ! Now the distribution of a single component of velocity is normally distributed,
     !    with variance k*T/m and mean 0 (this is the maxwell-boltzmann distribution)
     ! So to produce v, I just say v = sqrt(k*T/m) * N(0,1)
-    !    where N(0,1) is a random, normally distributed 
+    !    where N(0,1) is a random, normally distributed
     maxwell_boltzmann = sqrt(kb*T/m) * norm_deviates(cur_dev)
     cur_dev = cur_dev - 1
     return
@@ -478,7 +482,8 @@ contains
       deallocate(new_parts)
     end if
 
-    !now I know there is enough space
+
+     !now I know there is enough space
 	if( p%element == 0 ) then
 		! normal particle
 		c%ps(c%num_parts+1) = c%ps(c%partition+1)
@@ -597,7 +602,7 @@ contains
       round_rand = int_val
     end if
     return
-  end function round_rand  
+  end function round_rand
 
 
 

@@ -154,27 +154,40 @@ module inflow_mod
 
         Nsim = Nphys/Nef
 
+        ! ntracegrid.txt
+        open(unit=barf_unit,file="inflowdata/ntracegrid.txt",action="read")
+        do i = 1,nr
+            read(barf_unit,*) (ndens_tr_grid(i,j),j=1,nz)
+        end do
+        close(unit=barf_unit)
         ! ndens_tr_grid
-        w = 0.15d-3
-        a = 0.45d0
-        b = 0.8d0
-        floor = .1d0
+!        w = 0.15d-3
+!        a = 0.45d0
+!        b = 0.8d0
+!        floor = .1d0
 
         ! set the central trace density to the average of the argon density over
         ! ndens_grid
 
-       	n_not = 5*navg    ! set the trace density artificially high because we
+       	!_not = navg    ! set the trace density artificially high because we
                         ! treat them as a trace species, i.e., no self collisions
                         ! only collisions with argon. This means that the trace
                         ! density is arbitrary, and we choose it high to get good
                         ! statistics
-        do i = 1,nr
-            do j = 1,nz
+!        do i = 1,nr
+!            do j = 1,nz
 !               ndens_tr_grid(i,j) = n_not*( exp( -a*(r_grid(i,j)/w)**2 - b*(r_grid(i,j)/w)**4 ) + floor )/(1.d0+floor)
 ! decent fit to Haibin's data at 10 mm downstream
-                ndens_tr_grid(i,j) = n_not*( exp(-3.0d6*r_grid(i,j)**1.7) + .20 )/1.20
-            end do
-        end do
+!               ndens_tr_grid(i,j) = n_not*( exp(-3.0d6*r_grid(i,j)**1.7) + .20 )/1.20
+
+! hollow trace profile, simulating Argon metastable population
+!                a=.519e-3
+!                b=0.5
+!                ndens_tr_grid(i,j) = n_not*( b + r_grid(i,j)**2/a**2*4.d0*(1-0.5*b) )*0.15d0
+
+
+!            end do
+!        end do
 
 
     end subroutine init_inflow
@@ -346,8 +359,9 @@ module inflow_mod
 
 
                 ! figure out how many simulation particles to put into this section of the cell
-
-                dblint = 0.25*( ndens_tr_grid(i,j)*r_grid(i,j)+ndens_tr_grid(i+1,j)*r_grid(i+1,j) + &
+                !Don't divide by 4 in order to get good statistics
+                !Just add a ton to see what happens
+                dblint =( ndens_tr_grid(i,j)*r_grid(i,j)+ndens_tr_grid(i+1,j)*r_grid(i+1,j) + &
                                ndens_tr_grid(i,j+1)*r_grid(i,j+1)+ndens_tr_grid(i+1,j+1)*r_grid(i+1,j+1) )
 
                 !Nparts = (wedge_width*dblint*drblk*dzblk) / Nphys * Nsim + frac
@@ -355,6 +369,8 @@ module inflow_mod
 
                 frac = (Nparts - int(Nparts))
                 Nparts = int(Nparts)
+
+
 
                 ! Putting the particles into this section of the cell according to the 
                 ! distribution specified in the inflow data files.
@@ -406,6 +422,7 @@ module inflow_mod
                     intrpvz = fr*fz*vz_grid(i+1,j+1)+fr*(1.d0-fz)*vz_grid(i+1,j)+ &
                                 (1.d0-fr)*(1.d0-fz)*vz_grid(i,j)+(1.d0-fr)*fz*vz_grid(i,j+1)
 
+                    ! Box-Muller
                     call rand_mt(rnd)
                     call rand_mt(phi)
                     phi = 2.d0*pi*phi
@@ -418,10 +435,10 @@ module inflow_mod
                     p0%vz = vth*sqrt(-2.d0*log(rnd))*cos(phi) + intrpvz
 
                     p0%element = 1
-
+                    p0%flag=72
                     call cell_insert_particle(c,p0)
 
-                    !write(*,'(a3,6(1pe12.4))') '## ',p0%x, p0%y, p0%z, p0%vx, p0%vy, p0%vz
+!                    write(*,'(a3,6(1pe12.4))') '## ',p0%x, p0%y, p0%z, p0%vx, p0%vy, p0%vz
 
             
                 end do

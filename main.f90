@@ -59,7 +59,7 @@ program fenix10
 !     open(unit=311,file='dump.txt',status='unknown')
 !   end if
 
-!kluge: Open a file to dump grid densities for balancing number of particles on each processor
+!setup: Open a file to dump grid densities for balancing number of particles on each processor
 !   if(mpi_rank.eq.0) then
 !     open(unit=747,file='cell_dens.txt',status='unknown')
 !   end if
@@ -116,9 +116,13 @@ program fenix10
      end if
    
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Entering do_bc, current step = ',cur_step
-!   if(cur_step.gt.150) write(*,*) 'Entering do_bc, current step =',cur_step,'MPI_rank',mpi_rank
 
     call do_bc
+
+
+
+
+
     !When in debug mode, stop all processors after each subroutine
     if(debug_flag.eq.1) call  MPI_BARRIER(MPI_COMM_WORLD, mpi_ierr)
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Exiting do_bc, current step = ',cur_step
@@ -141,7 +145,6 @@ program fenix10
      end if
 
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Entering collide, current step = ',cur_step
- !  if(cur_step.gt.150) write(*,*) 'Entering collide, current step =',cur_step,'MPI_rank',mpi_rank
     call collide
 
     if(debug_flag.eq.1) call  MPI_BARRIER(MPI_COMM_WORLD, mpi_ierr)
@@ -157,6 +160,8 @@ program fenix10
    !******************** collide *** collide particles
 
 
+
+
    !******************** move *** move particles
      if(profileflag.eq.1) then
       call date_and_time(time=ctime)
@@ -165,15 +170,10 @@ program fenix10
      end if
 
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Entering move, current step = ',cur_step
- !  if(cur_step.gt.150) write(*,*) 'Entering move, current step =',cur_step,'MPI_rank',mpi_rank
+
+
     call move
-
   
-
-
-   !if(mpi_rank.eq.0) then
-   !  write(*,*) gc(1)%partition,gc(1)%num_parts-gc(1)%partition,' $$$'
-  !end if
 
      if(profileflag.eq.1) then
       call date_and_time(time=ctime)
@@ -194,10 +194,8 @@ program fenix10
      end if
 
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Entering reload_cells, current step = ',cur_step
-   !if(cur_step.gt.150) write(*,*) 'Entering reload_cells, current step =',cur_step,'MPI_rank',mpi_rank
     call reload_cells
 
-   !if(cur_step.gt.150) write(*,*) 'Exiting reload_cells, current step =',cur_step,'MPI_rank',mpi_rank
     
 
      if(profileflag.eq.1) then
@@ -246,7 +244,6 @@ program fenix10
      end if
 
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Entering collect_data, current step = ',cur_step
- !  if(cur_step.gt.150) write(*,*) 'Entering collect_data, current step =',cur_step,'MPI_rank',mpi_rank
     call collect_data
 
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Exiting collect_data, current step = ',cur_step

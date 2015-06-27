@@ -22,7 +22,7 @@ module move_mod
         use parallel_info_mod
         implicit none
         real(8) dN,dE,Nnet,Enet
-        integer i
+        integer i,j
 
         Nnet=0.d0
         Enet=0.d0
@@ -38,33 +38,34 @@ module move_mod
 
 
 
-!       stop 666
 
         !write(*,*) "starting ghost cell move: (num_gc:", num_gc, "):"
         do i=1,num_gc
             !write(*,*) "ghost cell number: ", i
+
+            ! watch i=1, mpi_rank=0
+            if(mpi_rank.eq.0.and.i.eq.1) then
+             dN=-10.d0
+            else
+             dN=0.d0
+            end if
+
             call cell_move(gc(i), tau,dN,dE)
 
 
 !           Nnet=Nnet+dN
 !           Enet=Enet+dE
         end do
+
 !      if(mpi_rank.eq.0) then
 !       stop 666
 !      end if
 
 
-
-!           if(mpi_rank.eq.0) then
-!            write(*,*) 'num_gc',num_gc
-!            i=1
-!             write(*,*) '@@ ',i,gc(i)%partition,gc(i)%num_parts-gc(i)%partition,gc(i)%mask
-
-!           end if
-
 !       if(Nnet.gt.0.d0) then
 !          write(*,*) 'Nnet, Enet: ',mpi_rank,Nnet,Enet
 !       end if
+
 
     end subroutine move
   
@@ -77,7 +78,7 @@ module move_mod
     !--- cell_move ---
     ! Moves all the particles in the cell, performing interactions with the metals 
     subroutine cell_move(cl, tau,dN,dE)
-	    use core_types_mod
+        use core_types_mod
         use core_data_mod
         use helpers_mod
         use constants_mod
@@ -163,8 +164,6 @@ module move_mod
            !Now avoid INF and NAN by making a zero temp just very small
            if(cl%tempavg.lt.1) cl%tempavg=1d0
 
-           cl%aref_ambi=(1d0+cl%Te/cl%tempavg) !cl%Te must be loaded with the
-                                          !electron temperature
            if(cl%tempavg.ne.cl%tempavg)then
                write(*,*) '##', num_avg,  cl%num_parts-cl%partition, cl%vz_fluid(num_dens), cl%vr_fluid(num_dens)
                write(*,*) 'TEMP', cl%temp
@@ -192,6 +191,8 @@ module move_mod
 
         ! start of move if block
         ! if the mask code is 0, just move them
+
+
 
 
 !*********start mask=0, ballistic move and return ***************
