@@ -299,12 +299,22 @@ module dataio_mod
     integer i,j,k,l
     real(8),allocatable,dimension(:,:,:) :: particle_info
     real(8),allocatable,dimension(:,:,:) :: particle_info_all
+
+! ambipolar field
+    real(8),allocatable,dimension(:,:) :: logdens
+    real(8) Te ! electron temperature in eV - should be a function if (r,z)
+    integer stride
+    real(8),allocatable,dimension(:) ::  xfit,zfit,f ! x=r^2, f=logdens
+
   ! To use MPI (Message Passing Interface) I have to include this header file
     include 'mpif.h'
 
 !allocating arrays to dump averages into
 ! everybody needs particle_info because they send their data in it
-    allocate(particle_info(20,num_s_cells_r,num_s_cells_z))    
+    allocate(particle_info(20,num_s_cells_r,num_s_cells_z))
+
+! allocate ambipolar field log(density) array
+    allocate(logdens(num_s_cells_r,num_s_cells_z))
 
 ! only mpi_rank=0 needs the array where the sum goes
 !   if(mpi_rank.eq.0) then
@@ -397,6 +407,8 @@ module dataio_mod
           !Averaging cell data and writing it for trace particles
           if (particle_info_all(11,i,j)/=0) then
              particle_info(11,i,j) = Nef * particle_info_all(11,i,j) / num_samples / V
+ ! load the amibpolar field array logdens, non-zero
+             logdens(i,j)=log(particle_info(11,i,j))
              do k=12,20
                 particle_info(k,i,j)=particle_info_all(k,i,j) / particle_info_all(11,i,j)
              end do
@@ -404,13 +416,27 @@ module dataio_mod
              do k=11,10
                 particle_info(k,i,j)=0
              end do
+
+ ! load the ambipolar field array logdens, zero
+             logdens(i,j)=0.d0
           end if
           write(outputtrace_unit,"(13(1pe12.4))") (particle_info(k,i,j),k=11,20),r,z,V
      end do
      end do
 
+! Build the ambipolar electric field by fitting to log(density) in the variables r^2 and z.
+! Do this on processor 0, then scatter to everybody else. Use Eambipolar = -grad(logdens)/Te(eV)
 
-  end if
+      stride=11
+
+      allocate(xfit(stride),zfit(stride),f(stride))
+
+      ! fit in x=r^2, then load s_Er
+
+
+
+
+  end if  ! bottom of mpi_rank=0 if block
 
      deallocate(particle_info_all)
 deallocate(particle_info)

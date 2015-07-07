@@ -550,7 +550,6 @@ module initialize_mod
         ! these are rough guesses; cell_collide will refine them the first time is called
         ! for each cell
         c%sigmavrmax = sqrt(3.d0*kb*simT/m)*1.d-20  ! starting point for sigma*vrmax, argon
-
         c%tr_sigmavrmax = sqrt(3.d0*kb*simT/tr_m)*1.d-20  ! initial starting point for sigmavrmax~=sigma*vrmax
         c%firstflag = 1 ! set the flag for cell-by-cell initialization of sigmavrmax
         c%firstflag_tr = 1 ! set the flag for cell-by-cell initialization of tr_sigmavrmax
@@ -564,6 +563,7 @@ module initialize_mod
         j=j+1
       end if
     end do
+
     close(unit=collstuff_u)
   
   end subroutine initialize_collision_cells
@@ -894,6 +894,7 @@ subroutine read_restart_file
 
        ! assign the particle to the first (and only) spot in an array 
        ! I do this because I think MPI_BSEND only works with arrays. (I think)
+
        p_buffer(1) = p
 
        ! here is where we either insert the particle if it's in our region, 
@@ -926,9 +927,9 @@ subroutine read_restart_file
 
        else
           ! If it belongs to processor rank 0, then we call the function below.
-
+      
+      
           call insert_into_correct_cell(p)
-
           ! we clear these because the "insert_into_correct_cell" function will put
           ! the particle into the comm cells if it doesn't belong there, but we don't
           ! want to do that in this case. It shouldn't happen, though.  Maybe only very rarely.

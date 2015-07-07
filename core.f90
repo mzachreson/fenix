@@ -165,6 +165,9 @@ implicit none
 
     ! volume of the cell
 	real(8) volume
+
+    ! ambipolar field components
+    real(8) s_Er,s_Ez
   end type sampling_cell_type
 
   type mask_type

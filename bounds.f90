@@ -283,9 +283,9 @@ contains
    Tavg=0.d0
    i=itop
 
-     if(mpi_rank.eq.0) then
+!    if(mpi_rank.eq.0) then
 !  write(*,*) 'jstart,jend: ',jstart,jend
-   end if
+!  end if
 
    do j=jstart,jend
      c = s_cells(i,j)
@@ -294,7 +294,7 @@ contains
         temp=m/3.d0/kb*( (c%sum_vx2+c%sum_vy2+c%sum_vz2)/c%sum_n - &
                       (c%sum_vx**2+c%sum_vy**2+c%sum_vz**2)/c%sum_n**2 )
 !       T_top(j) = temp
-        T_top(j) = TTarget ! nail the temperature
+!       T_top(j) = TTarget ! nail the temperature
      end if
         ! if there are no particles out here just use what was read in via T_top
 
@@ -317,7 +317,7 @@ contains
         temp=m/3.d0/kb*( (c%sum_vx2+c%sum_vy2+c%sum_vz2)/c%sum_n - &
                       (c%sum_vx**2+c%sum_vy**2+c%sum_vz**2)/c%sum_n**2 )
 !       T_end(i) = temp
-        T_end(i) = TTarget ! nail the temperature
+       !T_end(i) = TTarget ! nail the temperature
      end if
         ! if there are no particles out here just use what was read in via T_top
 
@@ -336,24 +336,24 @@ contains
 
 
 !  adjust T_top and T_end to hit this target
-   if(Tavg.gt.0.d0) then
-      do j=jstart,jend
-        T_top(j) = T_top(j)*TTarget/(Tavg+1d-8) ! protect against division by zero
-      end do
-   end if
+!  if(Tavg.gt.0.d0) then
+!     do j=jstart,jend
+!       T_top(j) = T_top(j)*TTarget/(Tavg+1d-8) ! protect against division by zero
+!     end do
+!  end if
 
-   if(Tavg.gt.0.d0) then
-      do i=1,itop
-        T_end(i) = T_end(i)*TTarget/(Tavg+1d-8) ! protect against division by zero
-      end do
-   end if
+!  if(Tavg.gt.0.d0) then
+!     do i=1,itop
+!       T_end(i) = T_end(i)*TTarget/(Tavg+1d-8) ! protect against division by zero
+!     end do
+!  end if
 
 ! extend beyond the window to pick up the ghost cell extension regions
 ! on either side
-    T_top(jstart-1)=2*T_top(jstart)-T_top(jstart+1)
-    T_top(jstart-2)=3*T_top(jstart)-2*T_top(jstart+1)
-    T_top(jend+1)=2*T_top(jend)-T_top(jend-1)
-    T_top(jend+2)=3*T_top(jend)-2*T_top(jend-1)
+!   T_top(jstart-1)=2*T_top(jstart)-T_top(jstart+1)
+!   T_top(jstart-2)=3*T_top(jstart)-2*T_top(jstart+1)
+!   T_top(jend+1)=2*T_top(jend)-T_top(jend-1)
+!   T_top(jend+2)=3*T_top(jend)-2*T_top(jend-1)
 
 ! End of Temperature control
 
@@ -366,9 +366,9 @@ contains
 ! the exit window, set P_top to zero inside the sampler
 
 
-    do j=1,max(1,jstart-3)
-     P_top(j)=0.d0
-    end do
+!   do j=1,max(1,jstart-3)
+!    P_top(j)=0.d0
+!   end do
 
 
 
@@ -408,20 +408,20 @@ contains
 
 ! punt and peg it. The code won't have a pressure that is constant like this, but
 ! it will be in the neighborhood of it and that seems to be the best I can do
-     do j=jstart,jend
-      P_top(j)=P
-     end do
+!    do j=jstart,jend
+!     P_top(j)=P
+!    end do
 
-     do i=1,itop
-      P_end(i)=P
-     end do
+!    do i=1,itop
+!     P_end(i)=P
+!    end do
 
 ! comment this loop if you just want to use the pressure profile read in
 
 ! extend beyond the window to pick up the ghost cell extension regions
 ! on either side along the top by the sampler
-    P_top(jstart-1)=2*P_top(jstart)-P_top(jstart+1)
-    P_top(jstart-2)=3*P_top(jstart)-2*P_top(jstart+1)
+!   P_top(jstart-1)=2*P_top(jstart)-P_top(jstart+1)
+!   P_top(jstart-2)=3*P_top(jstart)-2*P_top(jstart+1)
 
 
 ! End of Pressure control
@@ -590,7 +590,7 @@ contains
     implicit none
     type(cell_type) c
     integer Ncandidates, i, Nloaded
-    real(8) n, T, x, y, z, r, temp, nmax, delr2, fracandidates, rN
+    real(8) ::  n, T, x, y, z, r, temp, nmax, delr2, fracandidates=0.d0, rN
     real(8) zstart,zend,margin,vztmp,vrtmp,Ttmp,ntmp,vth
     real(8) vperp,theta,twopi
     type(particle_type) p0
@@ -755,7 +755,7 @@ contains
     implicit none
     type(cell_type) c
     integer Ncandidates, i, Nloaded
-    real(8) n, T, x, y, z, r, temp, nmax, delr2, delz, fracandidates, rN
+    real(8) :: n, T, x, y, z, r, temp, nmax, delr2, delz, fracandidates=0.d0, rN
     real(8) rstart,rend,margin,vztmp,vrtmp,Ttmp,ntmp,vth
     real(8) vperp,theta,twopi,Vlocal,rmaxlocal
 ! note that rmin_local and rmax_local are the min and max r-values in the

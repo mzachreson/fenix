@@ -21,15 +21,18 @@ contains
     use parallel_info_mod
     implicit none
     integer i
-    real(8) tot_coll,tot_cand
+    real(8) tot_coll,tot_cand,tot_coll_tr,tot_cand_tr
 ! kluge
 !   integer iflag
 !   iflag=0
+    integer num_coll,num_candidates
 
 
 ! watch candidates vs. collisions
     tot_coll=0.d0
     tot_cand=0.d0
+    tot_coll_tr=0.d0
+    tot_cand_tr=0.d0
 
 
     do i=1,num_cells
@@ -43,7 +46,9 @@ contains
       ! do normal particle collisions
       call cell_collide_subdivide(cells(i),tot_coll,tot_cand)
       ! do trace particle collisions
-      call trace_collide(cells(i),i)
+      call trace_collide(cells(i),i,num_coll,num_candidates)
+      tot_coll_tr=tot_coll_tr+num_coll
+      tot_cand_tr=tot_cand_tr+num_candidates
       ! do trace particle self collisions
       if(nanbu_switch) call trace_self_collide(cells(i))
     end do
@@ -53,7 +58,10 @@ contains
 
 !kluge
 !      write(*,101) mpi_rank,tot_cand/tot_coll,tot_cand,tot_coll
-101   format(' Collide:  tot_cand/tot_coll: ',i5,3(1pe12.4))
+!      write(*,102) mpi_rank,tot_cand_tr/tot_coll_tr,tot_cand_tr,tot_coll_tr
+101   format(' Argon Collide:  tot_cand/tot_coll: ',i5,3(1pe12.4))
+102   format(' Trace Collide:  tot_cand/tot_coll: ',i5,3(1pe12.4))
+
 
 
   end subroutine collide
@@ -380,7 +388,7 @@ contains
 
     ! collides all the trace-element particles
     ! which are in the ps array from index "partition+1" to "num_parts"
-    subroutine trace_collide(cl,icell)  ! trace particles collide with argon, argon is unchanged
+    subroutine trace_collide(cl,icell,num_coll,num_candidates)  ! trace particles collide with argon, argon is unchanged
         use core_types_mod
         use simulation_mod
         use constants_mod
@@ -388,7 +396,9 @@ contains
 ! kluge
     use parallel_info_mod
 
+
         implicit none
+
 
 ! kluge
         integer icell,num_coll
@@ -411,11 +421,15 @@ contains
         real(8) cmx,cmy,cmz
         integer nearswitch
         real(8) alpha,vexp,rexp
-        real(8) sigmavrmax,sigmavr
+        real(8) sigmavrmax,sigmavr,sigma,sigmalim
 
+! limit how big sigma can be, since it goes like 1/vr^(2*nu), growing
+! much faster than Langevin (1/vr) at small vr. This causes sigmavrmax
+! to become enormous occasionally, and then take forever to come back down.
+! This limit keeps sigmavrmax from becoming too large.
+        sigmalim = 1d-17
 
-
-
+        num_coll=0
 
         num_tr_parts = cl%num_parts - cl%partition
         num_norm_parts = cl%partition
@@ -423,24 +437,25 @@ contains
 
   ! if this is the first time there are 2 or more particles in this cell,
   ! run over the collision pairs and find the maximum value of sigma*vr
-    if(cl%firstflag_tr.eq.1.and.num_tr_parts.gt.1.and.num_norm_parts.gt.1) then
-	cl%firstflag_tr=0
-        cl%tr_sigmavrmax=0.d0
-             do j=1,num_tr_parts
-             do i=1,num_norm_parts
-                      k = num_norm_parts + i
-                      vrel2 =  (cl%ps(j)%vx-cl%ps(k)%vx)**2 + &
-                      (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
-                      (cl%ps(j)%vz-cl%ps(k)%vz)**2
-                      cl%tr_sigmavrmax = max(cl%tr_sigmavrmax, aref_tr*vrel2**(.5d0-nu_tr1)+bref_tr*vrel2**(.5d0-nu_tr2) )
+!    if(cl%firstflag_tr.eq.1.and.num_tr_parts.gt.1.and.num_norm_parts.gt.1) then
+!	cl%firstflag_tr=0
+!        cl%tr_sigmavrmax=0.d0
+!             do j=1,num_tr_parts
+!             do i=1,num_norm_parts
+!                      k = num_norm_parts + j
+!                      vrel2 =  (cl%ps(j)%vx-cl%ps(k)%vx)**2 + &
+!                      (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
+!                      (cl%ps(j)%vz-cl%ps(k)%vz)**2
+!                      cl%tr_sigmavrmax = max(cl%tr_sigmavrmax, aref_tr*vrel2**(.5d0-nu_tr1)+bref_tr*vrel2**(.5d0-nu_tr2) )
+!
+!             end do
+!             end do
+!    end if
+!
+!
 
-             end do
-             end do
-    end if
 
-
-
-
+        data alpha/1.66/
   !     vexp=0.5d0-nu_tr
         rexp=1.d0/alpha
 
@@ -495,12 +510,12 @@ contains
 
 
 ! round_rand method, rounding routine allows small numbers to round up
-!       num_candidates = round_rand(Nef*tau*cl%tr_sigmavrmax*num_norm_parts*num_tr_parts/(cl%volume))
+        num_candidates = round_rand(Nef*tau*cl%tr_sigmavrmax*num_norm_parts*num_tr_parts/(cl%volume))
 
 ! fraction method
-         rnum_candidates = (Nef*tau*cl%tr_sigmavrmax*num_norm_parts*num_tr_parts/(cl%volume)) + cl%num_cand_remaining
-         num_candidates = int(rnum_candidates)
-         cl%num_cand_remaining = rnum_candidates - num_candidates
+!        rnum_candidates = (Nef*tau*cl%tr_sigmavrmax*num_norm_parts*num_tr_parts/(cl%volume)) + cl%num_cand_remaining
+!        num_candidates = int(rnum_candidates)
+!        cl%num_cand_remaining = rnum_candidates - num_candidates
 
 
          ! Questions about the above equation:
@@ -532,8 +547,15 @@ contains
 
 ! compute sigmavr and adjust the ceiling on tr_sigmavrmax
             !Two nu cross section
-            sigmavr = (aref_tr*vrel2**(0.5d0-nu_tr1)+bref_tr*vrel2**(0.5d0-nu_tr2))
+            sigma = (aref_tr/vrel2**nu_tr1+bref_tr/vrel2**nu_tr2)
+            vrel = sqrt(vrel2)
+            sigmavr = sigma*vrel
+
             cl%tr_sigmavrmax = max(sigmavr, cl%tr_sigmavrmax)
+            ! be careful not to let sigmavrmax become unphysically large just because
+            ! an argon atom and an analyte ion happen to moving at about the same velocity
+
+            cl%tr_sigmavrmax=min(cl%tr_sigmavrmax,sigmalim*vrel)
 
             call rand_mt(temp)
             ! if rejecting this candidate, call 'cycle'
