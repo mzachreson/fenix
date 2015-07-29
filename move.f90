@@ -223,26 +223,6 @@ module move_mod
 
 ! special: dump particles
 !        if(cur_step.eq.8.and.mpi_rank.eq.0) then
-         if(cl%ps(k)%x.lt.0.3e-3.and.part_count.le.110000.and.mpi_rank.eq.cur_proc)then
-           write(311," (5(1x,1pe14.6),i3) ") cl%ps(k)%x,cl%ps(k)%z,cl%ps(k)%vx,cl%ps(k)%vy,cl%ps(k)%vz,mpi_rank
-           part_count=part_count+1
-         end if
-
-         !Now reset the count and go to the next processor
-         if(part_count.gt.90000) then
-            part_count=0
-            cur_proc=cur_proc+1
-            write(*,*) '### - Switched to processesor - ',cur_proc, part_count
-         end if
-         if(cur_proc.ne.0.and.mpi_rank.eq.1)then
-            write(*,*) 'cur_proc=',cur_proc
-            if(mpi_rank.eq.cur_proc) write(*,*) ' I am processor ',mpi_rank
-            if(mpi_rank.eq.1) write(*,*) 'Processeor 1'
-            stop 311
-         end if
-               
-         !Then kill it when it's done
-         if(cur_proc.gt.96) stop 311
 
 ! special: dump particles
 
