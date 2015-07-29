@@ -45,8 +45,8 @@ module bounds_mod
   real(8),allocatable,dimension(:) :: ur
   real(8),allocatable,dimension(:) :: uz
 
-  real(8) P,ufix
-  parameter(P=131.6,ufix=184.d0)
+  real(8) Ptarget,ufix
+  parameter(Ptarget=131.6,ufix=184.d0)
 
 contains
 
@@ -142,15 +142,6 @@ contains
      end do
      close(unit=900)
 
-!    vz_top(:) = 0.d0
-!    vr_top(:) = 120.d0
-!    T_top(:) = 1500.d0
-!    P_top(:) = P
-
-!    vz_end(:) = 0.d0
-!    vr_end(:) = 120.d0
-!    T_end(:) = 1500.d0
-!    P_end(:) = P
 
   end subroutine initialize_boundaries
 
@@ -214,15 +205,17 @@ contains
   !--- update_bc_data ---
   ! Looks at the sampling cells in the exit window at rmax and
   ! adaptively produces consistent boundary conditions in this
-  ! window. After much toil and trouble the method that works best
-  ! is this:
+  ! window. After much toil and trouble we found a couple of methods
+  ! that work, maybe.
 
-  ! Choose an average temperature across the window. Let the code
+  ! Ambitious approach:
+
+  ! Specify an average temperature across the window. Let the code
   ! choose the profile T(z), but rescale it every time this subroutine
   ! is called so that it has the desired average T. This target profile
   ! is called T_top (T_top is stored in the file (top_bound.txt).
 
-  ! Choose the average pressure and do the same thing as for T, creating
+  ! Specify the average pressure and do the same thing as for T, creating
   ! P_top. This profiles is not stored but is created in each update
   ! cycle by using the simulation density profile and T_top to find
   ! the profile of P that the simulation is choosing. This P profile is
@@ -230,6 +223,27 @@ contains
   ! in the ghost cell outside of the exit window.
 
   ! Let the code choose the profiles and magnitudes of Vr and Vz.
+
+  ! Less ambitious approach:
+
+  ! Specify both the pressure and the temperature at the top and
+  ! at the end. These are in Ptarget and Ttarget
+
+  ! let the velocities choose themselves by watching what particles
+  ! are doing at the edge and updating when update_bc_data is called,
+  ! on the output skip. This means that when you choose the output skip,
+  ! you are also choosing how often the boundary conditions are updated.
+  ! Not ideal, and even dangerous. An output skip less that 1000 makes
+  ! for jumpy boundary conditions in the velocity
+
+! NOTE: This routine could be called by any processor, but the sampling
+! cell data will only have been accumulated for the sampling cells belonging
+! that processor. This will defeat the purpose of this routine taking care
+! of updating boundary conditions all around the edge of the simulation.
+! To prevent this, this routine will only be called by processor 0, which
+! has had the sum of all sampling data over all processors loaded into its
+! sampling cells by write_collected_data.
+
 
 
 
@@ -242,7 +256,7 @@ contains
     implicit none
     integer i,j,itop,switch
     real(8) n, vz, r, theta
-    real(8) temp,Tavg,TTarget,Pavg,PTarget,Pcorrect
+    real(8) temp,Tavg,Ttarget,Pavg,PTarget,Pcorrect
 
     real(8) twopi,under
 
@@ -250,9 +264,17 @@ contains
 
     data twopi/6.283185307d0/
 
+! if this isn't processor 0, die
+if(mpi_rank.ne.0) then
+   write(*,*) 'mpi_rank isn''t 0 in update_bc_data. Dying.'
+   stop 456
+end if
+
 
  ! set the starting and ending sampling cells along the top for computing
  ! the outward flux and for updating boundary condition quantities
+
+ ! This has to be looked at everytime you try a new geometry
 
 ! use the polygon information read in
 
@@ -272,7 +294,7 @@ contains
 ! Start of Temperature control
 
 
-   TTarget = 3400.d0 ! the target magnitude for Tavg
+   Ttarget = 2740.d0 ! the target magnitude for Tavg
 
 ! let the code choose the distribution of T(z) along the top, but
 ! control its magnitude
@@ -283,9 +305,9 @@ contains
    Tavg=0.d0
    i=itop
 
-!    if(mpi_rank.eq.0) then
-!  write(*,*) 'jstart,jend: ',jstart,jend
-!  end if
+     if(mpi_rank.eq.0) then
+   write(*,*) 'jstart,jend: ',jstart,jend
+   end if
 
    do j=jstart,jend
      c = s_cells(i,j)
@@ -294,7 +316,7 @@ contains
         temp=m/3.d0/kb*( (c%sum_vx2+c%sum_vy2+c%sum_vz2)/c%sum_n - &
                       (c%sum_vx**2+c%sum_vy**2+c%sum_vz**2)/c%sum_n**2 )
 !       T_top(j) = temp
-!       T_top(j) = TTarget ! nail the temperature
+        T_top(j) = Ttarget ! nail the temperature
      end if
         ! if there are no particles out here just use what was read in via T_top
 
@@ -317,7 +339,7 @@ contains
         temp=m/3.d0/kb*( (c%sum_vx2+c%sum_vy2+c%sum_vz2)/c%sum_n - &
                       (c%sum_vx**2+c%sum_vy**2+c%sum_vz**2)/c%sum_n**2 )
 !       T_end(i) = temp
-       !T_end(i) = TTarget ! nail the temperature
+        T_end(i) = Ttarget ! nail the temperature
      end if
         ! if there are no particles out here just use what was read in via T_top
 
@@ -338,13 +360,13 @@ contains
 !  adjust T_top and T_end to hit this target
 !  if(Tavg.gt.0.d0) then
 !     do j=jstart,jend
-!       T_top(j) = T_top(j)*TTarget/(Tavg+1d-8) ! protect against division by zero
+!       T_top(j) = T_top(j)*Ttarget/(Tavg+1d-8) ! protect against division by zero
 !     end do
 !  end if
 
 !  if(Tavg.gt.0.d0) then
 !     do i=1,itop
-!       T_end(i) = T_end(i)*TTarget/(Tavg+1d-8) ! protect against division by zero
+!       T_end(i) = T_end(i)*Ttarget/(Tavg+1d-8) ! protect against division by zero
 !     end do
 !  end if
 
@@ -409,11 +431,11 @@ contains
 ! punt and peg it. The code won't have a pressure that is constant like this, but
 ! it will be in the neighborhood of it and that seems to be the best I can do
 !    do j=jstart,jend
-!     P_top(j)=P
+!     P_top(j)=Ptarget
 !    end do
 
 !    do i=1,itop
-!     P_end(i)=P
+!     P_end(i)=Ptarget
 !    end do
 
 ! comment this loop if you just want to use the pressure profile read in
@@ -431,6 +453,7 @@ contains
     switch=0
     i=itop
 
+
     do j=jstart,jend
 
          c = s_cells(i,j)
@@ -438,12 +461,26 @@ contains
 ! Let vr and vz do what the code wants
 ! if there is not data just keep what we had before from top_bound.txt
 
+! try underrelaxing
+        under=0.8;
+
+! kluge
+   write(*,507) mpi_rank,c%sum_n,c%sum_vx,c%sum_vz
+507 format(' rank, n, vx, vz: ',i4,3(1x,1pe12.4))
+
+
         if(c%sum_n.gt.0.d0) then
-          vr_top(j) = c%sum_vx/c%sum_n
-          vz_top(j) = c%sum_vz/c%sum_n
+          vr_top(j) = c%sum_vx/c%sum_n*under + (1.d0-under)*vr_top(j)
+          vz_top(j) = c%sum_vz/c%sum_n*under + (1.d0-under)*vz_top(j)
           switch=1
         end if
         ! if there are no particles, just keep what was read in
+
+
+if(c%sum_n.ne.0) then
+   write(*,401) mpi_rank,j,c%sum_n,c%sum_vx,c%sum_vz
+401 format(' $top: ',i4,i4,3(1x,1pe12.4))
+end if
 
    end do
 
@@ -457,8 +494,8 @@ contains
 ! if there is not data just keep what we had before from top_bound.txt
 
         if(c%sum_n.gt.0.d0) then
-          vr_end(i) = c%sum_vx/c%sum_n
-          vz_end(i) = c%sum_vz/c%sum_n
+          vr_end(i) = c%sum_vx/c%sum_n*under + (1.d0-under)*vr_end(i)
+          vz_end(i) = c%sum_vz/c%sum_n*under + (1.d0-under)*vz_end(i)
           switch=1
         end if
         ! if there are no particles, just keep what was read in
@@ -508,6 +545,9 @@ contains
        do j=1,num_s_cells_z
          write(900,101) vz_top(j),vr_top(j),T_top(j),P_top(j)
 101      format(4(1x,1pe12.4))
+!kluge
+         write(*,407) mpi_rank,j,vr_top(j)
+407 format(' proc, j, vr_top ',2(1x,i4),1pe12.4)
        end do
        close(unit=900)
 

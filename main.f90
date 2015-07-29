@@ -55,9 +55,9 @@ program fenix10
 
 
 
-!   if(mpi_rank.eq.0) then
-!     open(unit=311,file='dump.txt',status='unknown')
-!   end if
+    if(mpi_rank.eq.0) then
+      open(unit=311,file='dump.txt',status='unknown')
+    end if
 
 !setup: Open a file to dump grid densities for balancing number of particles on each processor
 !   if(mpi_rank.eq.0) then
@@ -263,10 +263,18 @@ program fenix10
 !     write(*,*) ' Going into write_collected_data ',mpi_rank
       call write_collected_data
 !     write(*,*) ' Coming out of write_collected_data ',mpi_rank
-!     call update_bc_data  ! turn off boundary cell updating
+
+      ! only processor 0 updates boundary conditions
+      if(mpi_rank.eq.0.and.cur_step.gt.1500) then
+
+       call update_bc_data  ! turn off boundary cell updating by commenting this line
+
+      end if ! end of processor 0 boundary condition update
+
       ! now erase the sampling cells, the data is no longer needed
       call zero_s_cells
-    end if
+
+    end if ! end of output and boundary condition if block
 
     ! Standard Out updated intermittently
     if(mod(cur_step,10).eq.0)then

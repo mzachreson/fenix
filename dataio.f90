@@ -372,14 +372,38 @@ module dataio_mod
        end if
      end do
   end do  
+
  ! write(*,*) 'Calling MPI_REDUCE on particle_info_all',mpi_rank
-!Bringing all of the info onto the first processor
+!Bringing all of the info onto the first processor using MPI_SUM as the
+!operator so that everybody is summed into particle_info_all on Processor 0
    call MPI_REDUCE(particle_info,particle_info_all,20*num_s_cells_r*num_s_cells_z,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,mpi_ierr)
 !Writing the data to output.txt and output_trace.txt
  ! write(*,*) 'Writing to file',mpi_rank
+
+  ! Now, only on Processor 0, write the summed and averaged data to the argon and trace output files
+  ! We also use this information in update_bc_data, so first thing we will load the summed data
+  ! from all of the processors into the cell data for processor 0. This will mess these data up, for only
+  ! for long enough for us to (1) call update_bc_data, then (2) zero out all of the sampling cell data
+  ! on all of the processors.  In main.f90 the order must be:  (1) write the collected data (this routine)
+  ! (2) update the boundary conditions (3) zero the sampling cell data
+
   if (mpi_rank == 0) then
      do j=1,num_s_cells_z
      do i=1,num_s_cells_r    
+
+      ! load the summed data from all processors into the cell data for processor 0
+      ! for use by update_bc_data
+        s_cells(i,j)%sum_n = particle_info_all(1,i,j)
+        s_cells(i,j)%sum_vx = particle_info_all(8,i,j)
+        s_cells(i,j)%sum_vy = particle_info_all(9,i,j)
+        s_cells(i,j)%sum_vz = particle_info_all(10,i,j)
+        s_cells(i,j)%sum_vx2 = particle_info_all(2,i,j)
+        s_cells(i,j)%sum_vy2 = particle_info_all(3,i,j)
+        s_cells(i,j)%sum_vz2 = particle_info_all(4,i,j)
+        s_cells(i,j)%sum_vxvy = particle_info_all(5,i,j)
+        s_cells(i,j)%sum_vxvz = particle_info_all(6,i,j)
+        s_cells(i,j)%sum_vyvz = particle_info_all(7,i,j)
+
           !Loading Geometry info
           r = (i*s_cells_dr + (i-1)*s_cells_dr)/2.d0
           z = (j*s_cells_dz + (j-1)*s_cells_dz)/2.d0
