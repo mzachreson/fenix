@@ -882,7 +882,6 @@ subroutine read_restart_file
 
        ! reading the particles (argon and trace)
        read(restart_unit) p
-       if(p%element==1) cycle !rip111 
 
        ! any NaN values are skipped
        if(isnan(p%r) .or. isnan(p%z) .or. isnan(p%x) .or. isnan(p%y) &
