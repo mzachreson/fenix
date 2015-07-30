@@ -548,7 +548,7 @@ end if
          write(900,101) vz_top(j),vr_top(j),T_top(j),P_top(j)
 101      format(4(1x,1pe12.4))
 !kluge
-         write(*,407) mpi_rank,j,vr_top(j)
+!        write(*,407) mpi_rank,j,vr_top(j)
 407 format(' proc, j, vr_top ',2(1x,i4),1pe12.4)
        end do
        close(unit=900)
