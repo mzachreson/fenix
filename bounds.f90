@@ -155,27 +155,34 @@ contains
     integer i
     real(8) margin
 
-    if(gc_type(i) .eq. 1)then !left gc
+    if(gc_type(i) .eq. 1)then !left ghost cell
+
       gc(i)%min_z = zmin_local - margin
       gc(i)%max_z = zmin_local
       gc(i)%min_r = max(rmin_local - margin, 0.d0)
       gc(i)%max_r = rmax_local + margin
 
     else if(gc_type(i) .eq. 2)then !top gc
+
       if(zmin_local .eq. zmin_global)then
         gc(i)%min_z = zmin_local
       else
         gc(i)%min_z = zmin_local - margin
       end if
+
       if(zmax_local .eq. zmax_global)then
         gc(i)%max_z = zmax_local
       else
         gc(i)%max_z = zmax_local + margin
       end if
-      gc(i)%min_r = rmax_local
-      gc(i)%max_r = rmax_local + margin
 
-    else if(gc_type(i) .eq. 3)then !right gc
+      gc(i)%min_r = rmax_local
+      gc(i)%max_r = rmax_local + margin ! put particles past the outer radius
+
+! end left ghost cell
+
+    else if(gc_type(i) .eq. 3)then !right ghost cell
+
       gc(i)%min_z = zmax_local
       gc(i)%max_z = zmax_local + margin
       gc(i)%min_r = max(rmin_local - margin, 0.d0)
@@ -464,11 +471,6 @@ end if
 ! try underrelaxing
         under=0.8;
 
-! kluge
-   write(*,507) mpi_rank,c%sum_n,c%sum_vx,c%sum_vz
-507 format(' rank, n, vx, vz: ',i4,3(1x,1pe12.4))
-
-
         if(c%sum_n.gt.0.d0) then
           vr_top(j) = c%sum_vx/c%sum_n*under + (1.d0-under)*vr_top(j)
           vz_top(j) = c%sum_vz/c%sum_n*under + (1.d0-under)*vz_top(j)
@@ -477,14 +479,8 @@ end if
         ! if there are no particles, just keep what was read in
 
 
-if(c%sum_n.ne.0) then
-   write(*,401) mpi_rank,j,c%sum_n,c%sum_vx,c%sum_vz
-401 format(' $top: ',i4,i4,3(1x,1pe12.4))
-end if
-
    end do
 
-    switch=0
     j=jend
     do i=1,itop
 
@@ -528,12 +524,18 @@ end if
     vz_top(jstart-1)=0.d0
     vz_top(jstart-2)=0.d0
 
-    if(mpi_rank.eq.0) then
+! kluge - band aid on vr_top near the end, going strongly negative
+
+      vr_top(jend)=vr_top(jend-5)
+      vr_top(jend-1)=vr_top(jend-6)
+      vr_top(jend-2)=vr_top(jend-7)
+      vr_top(jend-3)=vr_top(jend-8)
+
+
       write(*,*) ' T_top(167) :',T_top(167), ' T_end(100) :',T_end(100)
       write(*,*) ' P_top(167) :',P_top(167)
       write(*,*) ' dens_top(167) :',s_cells(itop,167)%sum_n/s_cells(itop,167)%volume*Nef/num_samples
 117   format(' n(167): ',1pe12.4)
-    end if
 
 
 ! write these quantities if there are particles at the outer edge to work with
@@ -761,9 +763,11 @@ end if
 !           call cell_insert_particle(c, p0)
 
 
-!             write(311,101) mpi_rank,p0%x,p0%z,p0%vx,p0%vy,p0%vz
-        end if
-  101   format(i5,5(1x,1pe12.4))
+!            if(mpi_rank.eq.71) then
+!              write(*,101) mpi_rank,p0%x,p0%z,p0%vx,p0%vy,p0%vz
+!  101   format(' top: ',i5,5(1x,1pe12.4))
+!            end if
+         end if
 
 
     end do
@@ -928,7 +932,7 @@ end if
             p0%r = x
 
 ! look at the particles being loaded
-!           write(*,"( 6(1x,1pe12.4) )") x,z,p0%vx,p0%vy,p0%vz
+!           write(*,"( 'right: ', 5(1x,1pe12.4) )") x,z,p0%vx,p0%vy,p0%vz
 
             p0%flag=99 ! flag it as a particle born as a ghost particle
 
