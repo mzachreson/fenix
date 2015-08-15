@@ -33,11 +33,13 @@ program fenix10
   character(10) ctime
   integer hour,minute,profileflag,err,i,j,writeflag
   integer maxnum,minnum
-  integer debug_flag
+  integer debug_flag,ambipolar_switch
   
   real(8) radial_avg_parts
   real(8) tic, toc, sec, all_tic, all_toc
   character num_buf*12 ! a place to put the processor number
+
+  real(8),allocatable,dimension(:,:) :: logdens
 
 
 ! set profileflag to 1 if you want timing data on the subroutines called
@@ -48,6 +50,12 @@ program fenix10
 !set debug_flag to 1 to make fenix report when it enters and exits each
 !subroutine along with the timestep number
   data debug_flag /0/
+
+! set the ambipolar electric field calculation switch
+! 1=compute it in dataio, 0=don't compute it, set it to 0
+   data ambipolar_switch/0/
+
+
 
 
 ! open a file into which axis particles will be dumped for
@@ -70,6 +78,11 @@ program fenix10
    end if
 
   call initialize_all()
+
+
+! allocate logdens when the sampling grid has been defined
+! logdens used to compute the amibpolar field
+    allocate(logdens(num_s_cells_r,num_s_cells_z))
 
   cur_step = 0
   call write_particles_per_processor()
@@ -228,6 +241,7 @@ program fenix10
 
     !Now keep the processors on the same timestep
     call MPI_BARRIER(MPI_COMM_WORLD, mpi_ierr)
+
      if(profileflag.eq.1) then
       call date_and_time(time=ctime)
       read(ctime,"(i2,i2,f6.3)") hour,minute,sec
@@ -244,6 +258,7 @@ program fenix10
      end if
 
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Entering collect_data, current step = ',cur_step
+
     call collect_data
 
     if(debug_flag.eq.1.and.mpi_rank.eq.0) write(*,*) 'Exiting collect_data, current step = ',cur_step
@@ -261,7 +276,7 @@ program fenix10
     ! collected data written intermittently
     if(mod(cur_step,output_skip).eq.0)then
 !     write(*,*) ' Going into write_collected_data ',mpi_rank
-      call write_collected_data
+      call write_collected_data(logdens,ambipolar_switch)
 !     write(*,*) ' Coming out of write_collected_data ',mpi_rank
 
       ! only processor 0 updates boundary conditions
@@ -282,7 +297,7 @@ program fenix10
     end if
 
     ! writes the number of particles per processor to the standard out, intermittently
-    if(mod(cur_step,500).eq.0)then
+    if(mod(cur_step,2000).eq.0)then
       call write_particles_per_processor()
     end if
 

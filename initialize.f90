@@ -202,8 +202,7 @@ module initialize_mod
 
             read(in_u, *) comp_reg_r(i)
             if(mpi_rank == 0) then
-               write(*, *) 'comp_reg_r(',i,')'
-               write(*, *) comp_reg_r(i)
+               write(*,  "('comp_reg_r(',i3,') = ',i5)") i-1,comp_reg_r(i)
             end if
 
         end do
@@ -211,8 +210,7 @@ module initialize_mod
         do i=2,num_proc_z+1
             read(in_u, *) comp_reg_z(i)
             if(mpi_rank == 0) then
-               write(*, *) 'comp_reg_z(',i,')'
-               write(*, *) comp_reg_z(i)
+               write(*,  "('comp_reg_z(',i3,') = ',i5)") i-1,comp_reg_z(i)
             end if
         end do
     ! end multi processor if block
@@ -803,14 +801,14 @@ subroutine read_restart_file
   integer status_struct(MPI_STATUS_SIZE)
   integer iostatus
 
- ! Set what style of restart file is being read
- restart_flag=1 !0 is the binary file, 1 is the ascii style file
-
-
   allocate(ireg(num_s_cells_r))
   allocate(jreg(num_s_cells_z))
   size_particle = sizeof(p_buffer)
   bytes_to_send = size_particle
+
+
+    ! Set what style of restart file is being read
+    restart_flag=1 !0 is the binary file, 1 is the ascii style file
 
 
   ! RANK 0 reads restart file
@@ -882,6 +880,9 @@ subroutine read_restart_file
 
        ! reading the particles (argon and trace)
        read(restart_unit) p
+
+  ! let this statement execute if you don't want to read in trace particles
+  !    if(p%element==1) cycle
 
        ! any NaN values are skipped
        if(isnan(p%r) .or. isnan(p%z) .or. isnan(p%x) .or. isnan(p%y) &
@@ -1244,15 +1245,17 @@ subroutine initialize_trace_collide_data
 !Trace switch is set in core.f90
 use constants_mod
 use simulation_mod
+
 !First load the argon id code:
 particle_code=1.1180E+00
+
 !The name of the element is encoded in a real number to make it backwards
 !compatable with old post processing software.
 !The first two digits save the first letter of the Element
 !They are encoded as 11=A;12=B; up to 36=Z; 
 !(The decimal point is ignored)
 !Starting at 11 avoids rounding problems when the number is printed
-!The 3rd and forth digits hold the second letter of the element.
+!The 3rd and fourth digits hold the second letter of the element.
 ! 00 means there is no second letter, then the rest of the alphabet
 ! is encoded as 01 = a, 02=b, up to 26=z;
 !A few examples:

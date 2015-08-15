@@ -24,9 +24,7 @@ contains
 !   iflag=0
 
 
-! watch candidates vs. collisions
-    tot_coll=0.d0
-    tot_cand=0.d0
+
 
     do i=1,num_cells
 
@@ -75,7 +73,9 @@ contains
 !kluge
     integer num_parts,jj,k,i,num_coll,Npairs,num_cand
     real(8) tot_coll,tot_cand
-    real(8) vrel2,avgsigmavr,coll_target
+    real(8) vrel2,avgsigmavr,coll_target,under,f
+
+
 
 
   ! if this is the first time there are 2 or more particles in this cell,
@@ -99,46 +99,46 @@ contains
        end do
    end if
 
-!test  !kluge: average sigma*vr by running over all of the pairs
-!test  ! in just one collision cell chosen by finding the one with a particular point in it
-!test
-!test      vexp=0.5d0-nu
-!test
-!test        num_parts=cl%partition
-!test
-!test        num_coll=0
-!test        if(cl%min_r.lt.1.e-3.and.cl%max_r.gt.1.d-3.and.cl%min_z.lt.1.d-3.and.cl%max_z.gt.1.d-3 ) then
-!test          Npairs=cl%partition*(cl%partition-1)/2
-!test
-!test          if(Npairs.gt.0) then
-!test              avgsigmavr=0.d0
-!test              do jj=1,num_parts
-!test              do i=jj+1,num_parts
-!test                       k = i
-!test                       j = jj
-!test
-!test                       vrel2 =  (cl%ps(j)%vx-cl%ps(k)%vx)**2 + &
-!test                       (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
-!test                       (cl%ps(j)%vz-cl%ps(k)%vz)**2
-!test                     ! write(*,*) 'j,k,vrel2',j,k,vrel2
-!test                       avgsigmavr = avgsigmavr + aref*vrel2**vexp
-!test
-!test              end do
-!test              end do
-!test
-!test            ! write(*,*) 'aref_tr,nu_tr1,bref_tr,nu_tr2', aref_tr,nu_tr1,bref_tr,nu_tr2
-!test
-!test              avgsigmavr = avgsigmavr/Npairs
-!test              write(*,403) cl%partition,avgsigmavr,cl%volume,Nef
-!test 403         format(' Nparts,avgsigmavr,cl%volume,Nef',i5,3(1x,1pe12.4))
-!test              coll_target = 0.5d0*Nef*cl%partition*(cl%partition-1)/cl%volume*avgsigmavr*tau
-!test              write(*,*) 'Test cell, collision target: ',coll_target
-!test
-!test
-!test          end if
-!test
-!test        end if
-!test  !kluge
+  !kluge: average sigma*vr by running over all of the pairs
+  ! in just one collision cell chosen by finding the one with a particular point in it
+
+      vexp=0.5d0-nu
+
+        num_parts=cl%partition
+
+        num_coll=0
+        if(cl%min_r.lt.1.e-3.and.cl%max_r.gt.1.d-3.and.cl%min_z.lt.1.d-3.and.cl%max_z.gt.1.d-3 ) then
+          Npairs=cl%partition*(cl%partition-1)/2
+
+          if(Npairs.gt.0) then
+              avgsigmavr=0.d0
+              do jj=1,num_parts
+              do i=jj+1,num_parts
+                       k = i
+                       j = jj
+
+                       vrel2 =  (cl%ps(j)%vx-cl%ps(k)%vx)**2 + &
+                       (cl%ps(j)%vy-cl%ps(k)%vy)**2 + &
+                       (cl%ps(j)%vz-cl%ps(k)%vz)**2
+                     ! write(*,*) 'j,k,vrel2',j,k,vrel2
+                       avgsigmavr = avgsigmavr + aref*vrel2**vexp
+
+              end do
+              end do
+
+            ! write(*,*) 'aref_tr,nu_tr1,bref_tr,nu_tr2', aref_tr,nu_tr1,bref_tr,nu_tr2
+
+              avgsigmavr = avgsigmavr/Npairs
+!             write(*,403) cl%partition,avgsigmavr,cl%volume,Nef
+ 403         format(' Nparts,avgsigmavr,cl%volume,Nef',i5,3(1x,1pe12.4))
+              coll_target = 0.5d0*Nef*cl%partition*(cl%partition-1)/cl%volume*avgsigmavr*tau
+!             write(*,*) 'Test cell, collision target: ',coll_target
+
+
+          end if
+
+        end if
+  !kluge
 
     ! zero out all of the previous collision partners
     cl%ps(:)%prev_coll = 0
@@ -152,15 +152,18 @@ contains
     if(cl%partition .le. 1) return
 
     ! I want to make sure that each sub-collision cell has at least 7 particles
-    ! Bird says 7 is great; 20 is better (correct number of collisions per cell)
-    num_fracs = cl%partition / 20.d0
+    ! Bird says 7 is great; 14 is better (correct number of collisions per cell)
+    num_fracs = cl%partition / 14.d0
+
+    ! zero tot_coll and tot_cand
+    tot_coll=0.d0
+    tot_cand=0d0
+
 
     if(num_fracs .le. 1)then
       call cell_collide(cl, 1.d0, 1, cl%partition,num_coll,num_cand,sigmavrmax_local)
-!testif(cl%min_r.lt.1.e-3.and.cl%max_r.gt.1.d-3.and.cl%min_z.lt.1.d-3.and.cl%max_z.gt.1.d-3 ) then
-!test      tot_coll=tot_coll+num_coll
-!test      tot_cand=tot_cand+num_cand
-!testend if
+      tot_cand=num_cand
+      tot_coll=num_coll
     else
       call sortZ(cl%ps, 1, cl%partition)
       dn = dble(cl%partition)/dble(num_fracs)
@@ -182,24 +185,36 @@ contains
         ! collide!
         frac = (zmax-zmin)/(cl%max_z - cl%min_z)
         call cell_collide(cl, frac, kmin, kmax,num_coll,num_cand,sigmavrmax_local)
-
-      if(cl%min_r.lt.1.e-3.and.cl%max_r.gt.1.d-3.and.cl%min_z.lt.1.d-3.and.cl%max_z.gt.1.d-3 ) then
-              tot_coll=tot_coll+num_coll
-              tot_cand=tot_cand+num_cand
-      end if
+           tot_coll=tot_coll+num_coll
+           tot_cand=tot_cand+num_cand
       end do
     end if
 
 
     ! update the cell value of sigmavrmax here after all of the subdivisions of the cell
-    ! have been collided
-    cl%sigmavrmax = sigmavrmax_local
+    ! have been collided - this method bounces sigmavrmax up, then allows the 0.99 or 0.98
+    ! multiply to pull it back down. But it gives Ncoll/Ncand about 0.6, like the better
+    ! method below
+    ! cl%sigmavrmax = sigmavrmax_local
+
+
+! update the cell sigmavrmax based on trying to have num_coll/num_candidates near 0.5
+! but underrelax because of small number statistics
+
+   if(tot_cand.gt.0.d0.and.tot_coll.gt.0.d0) then
+      under=.3
+      f=tot_coll/tot_cand*2.d0
+      cl%sigmavrmax = (1.d0-under*(1.d0-f))*cl%sigmavrmax
+
+
+   end if
 
 
 
-!test            if(cl%min_r.lt.1.e-3.and.cl%max_r.gt.1.d-3.and.cl%min_z.lt.1.d-3.and.cl%max_z.gt.1.d-3 ) then
-!test             write(*,*) 'No. of argon collisions and target: ',tot_coll,coll_target
-!test            end if
+!            if(cl%min_r.lt.1.e-3.and.cl%max_r.gt.1.d-3.and.cl%min_z.lt.1.d-3.and.cl%max_z.gt.1.d-3 ) then
+!             write(*,401) tot_coll,tot_cand,coll_target,cl%partition
+!      401 format('tot_coll,tot_cand,coll_target,Ncell',3(1x,1pe12.4),1x,i10)
+!            end if
 
 
 
@@ -243,7 +258,6 @@ contains
 
 
 
-    num_coll=0 ! zero this before processing collisions
 
     ! compute number of candidates
     num_candidates = round_rand(Nef*tau*0.5d0*cl%sigmavrmax*num_parts*(num_parts-1.d0)/(frac*cl%volume)) !&
@@ -253,6 +267,7 @@ contains
     !cl%num_cand_remaining = rnum_candidates - num_candidates
 
     ! main collide loop
+    ! zero the collision counter and store the number of candidates for passing back
     num_coll=0
     num_cand=num_candidates
     do i=1,num_candidates
@@ -425,7 +440,7 @@ contains
         real(8) cmx,cmy,cmz
         integer nearswitch
         real(8) alpha,vexp,rexp
-        real(8) sigmavrmax,sigmavr,sigmamax,sigma
+        real(8) sigmavrmax,sigmavr,sigmamax,sigma,f,under
         real(8) vxold,vyold,vzold
 
 ! set the local value of sigmavrmax for the cell
@@ -564,8 +579,8 @@ contains
             !and sigma is singular at small vr
 
             sigma = (aref_tr/vrel2**nu_tr1+bref_tr/vrel2**nu_tr2)
-            sigmamax = 1d-15
-            sigma = min(sigma,sigmamax)
+!           sigmamax = 1d-15
+!           sigma = min(sigma,sigmamax)
 
             sigmavr = sigma*sqrt(vrel2);
             sigmavrmax_local = max(sigmavr, sigmavrmax_local)
@@ -641,9 +656,10 @@ contains
 
 !kluge watch for num_candidates/num_coll too big
 
-if(real(num_candidates)/real(num_coll).gt.10..and.num_coll.ne.0) then
-   write(*,*) 'r,z,ratio',cl%min_r,cl%min_z,real(num_candidates)/real(num_coll)
-end if
+!test if(real(num_candidates)/real(num_coll).gt.10..and.num_coll.ne.0) then
+!test    write(*,521) cl%min_r,cl%min_z,real(num_candidates)/real(num_coll),cl%tr_sigmavrmax
+!test 521 format('r,z,ratio, sigmarvmax: ',4(1pe12.4))
+!test end if
 
 
  ! kluge inspect the collision testing cell
@@ -655,7 +671,25 @@ end if
 
 
     ! update the cell value of sigmavrmax
-    cl%tr_sigmavrmax = sigmavrmax_local
+!   cl%tr_sigmavrmax = sigmavrmax_local
+
+! update the cell sigmavrmax based on trying to have num_coll/num_candidates near 0.5
+! but underrelax because of small number statistics
+
+   if(num_candidates.ne.0.and.num_coll.ne.0) then
+      under=.3
+      f=real(num_coll)/real(num_candidates)*2.d0
+      cl%tr_sigmavrmax = (1.d0-under*(1.d0-f))*cl%tr_sigmavrmax
+
+
+! test       if(cl%min_r.lt.0.39d-3.and.cl%max_r.gt.0.39d-3.and.cl%min_z.lt.0.2d-3.and.cl%max_z.gt.0.2d-3) then
+! test        write(*,*) 'No. of trace collisions and target: ',num_coll,coll_target
+! test        write(*,*) 'sigmavrmax: ',cl%tr_sigmavrmax
+! test       end if
+
+   end if
+
+
 
     end subroutine trace_collide
 
